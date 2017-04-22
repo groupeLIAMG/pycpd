@@ -5,7 +5,7 @@ Created on Tue Jun 21 20:55:29 2016
 
 @author: giroux
 
-Copyright 2016 Bernard Giroux
+Copyright 2017 Bernard Giroux
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -663,7 +663,7 @@ def means(x):
     if x.ndim == 1:
         return x
 
-    m, n = x.shape
+    m = x.shape[0]
     m = np.sum(x, axis=0)/m
     return m.reshape(1,-1)
 
