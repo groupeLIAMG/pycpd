@@ -152,8 +152,8 @@ class Grid2d:
         self.proj4string = proj4string
 
 
-    def inside(self, pt):
-        return pt.x>=self.xwest and pt.x<=self.xeast and pt.y>=self.ysouth and pt.y<=self.ynorth
+    def inside(self, pt, buffer=0.0):
+        return pt.x>=(self.xwest+buffer) and pt.x<=(self.xeast-buffer) and pt.y>=(self.ysouth+buffer) and pt.y<=(self.ynorth-buffer)
 
     def as_2col(self):
         x = self.xwest + self.dx * np.arange(self.ncol)
