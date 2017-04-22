@@ -24,6 +24,7 @@ import os
 import shelve
 import sys
 import numpy as np
+import pandas as pd
 from scipy.signal import tukey, hanning
 from mpl_toolkits.basemap import Basemap, cm  # @UnresolvedImport
 
@@ -711,14 +712,42 @@ class PyCPD(QMainWindow):
             QMessageBox.warning(self, 'Warning', 'Magnetic data should be loaded first', QMessageBox.Ok)
             return
         fname = QFileDialog.getOpenFileName(self, 'Open file', os.path.expanduser('~/'), 'Heat Flow Data (*.csv)')
-        # TODO
+        if fname[0]:
+            forages = []
+            try:
+                df = pd.read_csv(fname[0], encoding = "ISO-8859-1")            
+                for n in range(df.shape[0]):
+                    f = cpd.Forage(float(df['Latitude'][n]), float(df['Longitude'][n]), self.grid.proj4string)
+                    buffer = 250000.0  # 250 km buffer -> this to account for window used dto compute spectrum 
+                                        # (should allow user to change that, either in prefs or with dialog)
+                    if self.grid.inside( f, buffer ):
+                        f.site_name = str(df['Site Name'][n])
+                        if f in forages:
+                            ind = forages.index(f)
+                            f = forages[ind]
+                
+                        if not np.isnan( float(df['Heat Flow'][n]) ):
+                            f.Q0.append( float(df['Heat Flow'][n]) )
+                        if not np.isnan( float(df['Conductivity'][n]) ):
+                            f.k.append( float(df['Conductivity'][n]) )
+                        if not np.isnan( float(df['Heat Prod.'][n]) ):
+                            f.A.append( float(df['Heat Prod.'][n]) )
+                        if f not in forages:
+                            forages.append(f)
+                        
+            except Exception as e:
+                QMessageBox.warning(self, 'Warning', str(e), QMessageBox.Ok)
+                return
+            
+            self.forages = forages  
+            ex.locmap.updateBhLoc(ex.forages[0])
         
         
     def saveDb(self):
         if self.forages == None:
             QMessageBox.warning(self, 'Warning', 'Current database empty, nothing to save', QMessageBox.Ok)
             return
-        fname = QFileDialog.getSaveFileName(self, 'Save Experimental Variogram', os.path.expanduser('~/'), 'Database file (*.db)')
+        fname = QFileDialog.getSaveFileName(self, 'Save borehole database', os.path.expanduser('~/'), 'Database file (*.db)')
         if fname[0]:
             db = shelve.open(fname[0], 'n')
             db['forages'] = self.forages
