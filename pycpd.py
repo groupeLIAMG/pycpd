@@ -494,7 +494,7 @@ class PyCPD(QMainWindow):
         openDbAction.triggered.connect(self.loadDb)
 
         saveDbAction = QAction('Save Borehole Database ...', self)
-        saveDbAction.setShortcut('Ctrl+s')
+        saveDbAction.setShortcut('Ctrl+Shift+S')
         saveDbAction.setStatusTip('Save borehole data')
         saveDbAction.triggered.connect(self.saveDb)
 
@@ -502,6 +502,14 @@ class PyCPD(QMainWindow):
         loadMapAction.setShortcut('Ctrl+M')
         loadMapAction.setStatusTip('Load Mag data')
         loadMapAction.triggered.connect(self.loadMag)
+        
+        loadProjAction = QAction('Load Project ...', self)
+        loadProjAction.setShortcut('Ctrl+L')
+        loadProjAction.triggered.connect(self.loadProject)
+
+        saveProjAction = QAction('Save Project ...', self)
+        saveProjAction.setShortcut('Ctrl+S')
+        saveProjAction.triggered.connect(self.saveProject)
 
         exitAction = QAction('Exit', self)        
         exitAction.setShortcut('Ctrl+Q')
@@ -512,10 +520,12 @@ class PyCPD(QMainWindow):
 
         menubar = self.menuBar()
         fileMenu = menubar.addMenu('&File')
+        fileMenu.addAction(loadMapAction)
         fileMenu.addAction(createDbAction)
         fileMenu.addAction(openDbAction)
         fileMenu.addAction(saveDbAction)
-        fileMenu.addAction(loadMapAction)
+        fileMenu.addAction(loadProjAction)
+        fileMenu.addAction(saveProjAction)
         fileMenu.addAction(exitAction)
         
         mw = QFrame()
@@ -741,6 +751,8 @@ class PyCPD(QMainWindow):
             
             self.forages = forages  
             ex.locmap.updateBhLoc(ex.forages[0])
+            self.statusBar().clearMessage()
+            self.statusBar().showMessage('Database created, contains '+str(len(forages))+' boreholes')
         
         
     def saveDb(self):
@@ -749,7 +761,11 @@ class PyCPD(QMainWindow):
             return
         fname = QFileDialog.getSaveFileName(self, 'Save borehole database', os.path.expanduser('~/'), 'Database file (*.db)')
         if fname[0]:
-            db = shelve.open(fname[0], 'n')
+            if fname[0][-3:] == '.db':
+                filename = fname[0][:-3] # remove extension, it is added by shelve
+            else:
+                filename = fname[0]
+            db = shelve.open(filename, 'n')
             db['forages'] = self.forages
             db.close()
 
@@ -792,6 +808,39 @@ class PyCPD(QMainWindow):
             except IOError:
                 QMessageBox.warning(self, 'Warning', 'Error loading mag data', QMessageBox.Ok)
                 self.grid = oldgrid
+                
+    def loadProject(self):
+        fname = QFileDialog.getOpenFileName(self, 'Open file', os.path.expanduser('~/'), 'Mac OS (*.db);;Linux (*.dat)')
+        if fname[0]:
+            try:
+                if fname[1] == 'Mac OS (*.db)':
+                    tmp = fname[0][:-3]
+                elif fname[1] == 'Linux (*.dat)':
+                    tmp = fname[0][:-4]
+                db = shelve.open(tmp,'r')
+                self.forages = db['forages']
+                self.grid = db['grid']
+                db.close()
+                self.bh.setList(self.forages)
+                ex.locmap.drawMap(ex.grid)
+            except IOError:
+                QMessageBox.warning(self, 'Warning', 'Error loading database', QMessageBox.Ok)
+        
+    
+    def saveProject(self):
+        if self.forages == None and self.grid == None:
+            QMessageBox.warning(self, 'Warning', 'Current project empty, nothing to save', QMessageBox.Ok)
+            return
+        fname = QFileDialog.getSaveFileName(self, 'Save pycpd project', os.path.expanduser('~/'), 'Database file (*.db)')
+        if fname[0]:
+            if fname[0][-3:] == '.db':
+                filename = fname[0][:-3] # remove extension, it is added by shelve
+            else:
+                filename = fname[0]
+            db = shelve.open(filename, 'n')
+            db['forages'] = self.forages
+            db['grid'] = self.grid
+            db.close()
                 
     def fitSpectrum(self):
         
@@ -984,16 +1033,16 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = PyCPD()
     
-    db = shelve.open('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages','r')
-    ex.forages = db['forages']
-    db.close()
-    ex.bh.setList(ex.forages)
-    
-    ex.grid = cpd.Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
-    ex.grid.readnc('/Users/giroux/JacquesCloud/Projets/CDP/NAmag/Qc_lcc_k_cut.nc')
-    ex.locmap.drawMap(ex.grid)
-    ex.locmap.updateBhLoc(ex.forages[0])
-    ex.computeSpectrum()
-    ex.plotLachenbruch()
+#     db = shelve.open('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages','r')
+#     ex.forages = db['forages']
+#     db.close()
+#     ex.bh.setList(ex.forages)
+#     
+#     ex.grid = cpd.Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
+#     ex.grid.readnc('/Users/giroux/JacquesCloud/Projets/CDP/NAmag/Qc_lcc_k_cut.nc')
+#     ex.locmap.drawMap(ex.grid)
+#     ex.locmap.updateBhLoc(ex.forages[0])
+#     ex.computeSpectrum()
+#     ex.plotLachenbruch()
     
     sys.exit(app.exec_())
