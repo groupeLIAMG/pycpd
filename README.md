@@ -3,6 +3,28 @@ Interactive data processing and analysis tool to compute the Curie point depth f
 
 The user interface is really a work in progress for now.  More to come soon.
 
+## Requirements
+
+pycpd is programmed in python 3 and was tested on a mac running python 3.5 installed via macports.
+
+The following python mudules are needed to run the software
+- numpy and scipy
+- pandas
+- PyQt5
+- matplotlib basemap (https://matplotlib.org/basemap/)
+- netCDF4 (https://github.com/Unidata/netcdf4-python)
+- pyproj (https://github.com/jswhit/pyproj)
+- pyfftw (https://pypi.python.org/pypi/pyFFTW)
+- spectrum (http://www.thomas-cokelaer.info/software/spectrum/html/contents.html)
+
+### Cython file
+
+Run the following command in the source directory in order to use the maximum entropy method to estimate the spectra (c code wrapped with cython)
+
+```
+python setup.py build_ext --inplace
+```
+
 ## Aeromagnetic Data
 
 - Aeromagnetic data should be gridded on a cartesian grid with spatial units in meters
