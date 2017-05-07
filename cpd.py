@@ -36,7 +36,8 @@ import time
 import warnings
 
 import geostat
-
+import radon
+import spectrum
 
 class Point:
     def __init__(self, x, y):
@@ -340,7 +341,7 @@ class Grid2d:
         return Z[:self.ncol, :self.nrow].T  # transpose to have nx cols & ny rows
 
 
-    def getRadialSpectrum(self, xc, yc, ww, window=np.hanning, detrend=0, scalFac=0.001):
+    def getRadialSpectrum(self, xc, yc, ww, window=np.hanning, detrend=0, scalFac=0.001, mem=False, order=10):
         """
         Compute radial spectrum for point at (xc,yc) for square window of
         width equal to ww
@@ -358,6 +359,8 @@ class Grid2d:
                    3 : remove median value
                    4 : remove mid value, i.e. 0.5 * (max + min)
         scalFac  : scaling factor to get k in rad/km  (0.001 by default, for grid in m)
+        mem      : If True, calculate spectrum with maximum entropy estimator (Srinivasa et al. 1992, IEEE Trans. Signal Processing)
+        order    : order of maximum entropy estimator
 
         Returns
         -------
@@ -443,30 +446,48 @@ class Grid2d:
         for n in range(taper.shape[0]):
             taper[n,:] *= ht
 
-        TF2D = np.abs(np.fft.fft2(data*taper))
-        TF2D = np.fft.fftshift(TF2D)
-
         dx = self.dx * scalFac  # from m to km
-
         dk = 2.0*np.pi / (nw-1) / dx
-        kbins = np.arange(dk, dk*nw/2, dk)
-        nbins = kbins.size-1
-        S = np.zeros((nbins,))
-        k = np.zeros((nbins,))
-        E2 = np.zeros((nbins,))
+        if mem == True:
+            k = np.arange(dk, dk*nw/2, dk)
+            S = np.zeros((k.size,))
+            E2 = np.zeros((k.size,))
 
-        i0 = int((nw-1)/2)
-        iy,ix= np.meshgrid(np.arange(nw), np.arange(nw))
-        kk = np.sqrt( ((ix-i0)*dk)**2 + ((iy-i0)*dk)**2 )
+            theta = np.pi*np.arange(0.0,180.0,5.0)/180.0
+            sinogram = radon.radon2d(data*taper, theta)
+            SS = np.zeros((theta.size,k.size))
 
-        for n in range(nbins):
-            ind = np.logical_and( kk>=kbins[n], kk<=kbins[n+1] )
-            rr = 2.0*np.log(TF2D[ind])
-            S[n] = np.mean(rr)
-            k[n] = np.mean(kk[ind])
-            E2[n] = np.std(rr) / np.sqrt( rr.size/2 )
+            for n in range(theta.size):
+                AR, P, kk = spectrum.arburg(sinogram[:,n], order)
+                PSD = spectrum.arma2psd(AR, NFFT=1+2*k.size)
+                SS[n,:] = 2.0*np.log( k * PSD[1:k.size+1] )
+
+            S = np.mean(SS, axis=0)
+            E2 = np.std(SS, axis=0)
+
+        else:
+            TF2D = np.abs(np.fft.fft2(data*taper))
+            TF2D = np.fft.fftshift(TF2D)
+
+            kbins = np.arange(dk, dk*nw/2, dk)
+            nbins = kbins.size-1
+            S = np.zeros((nbins,))
+            k = np.zeros((nbins,))
+            E2 = np.zeros((nbins,))
+
+            i0 = int((nw-1)/2)
+            iy,ix= np.meshgrid(np.arange(nw), np.arange(nw))
+            kk = np.sqrt( ((ix-i0)*dk)**2 + ((iy-i0)*dk)**2 )
+
+            for n in range(nbins):
+                ind = np.logical_and( kk>=kbins[n], kk<=kbins[n+1] )
+                rr = 2.0*np.log(TF2D[ind])
+                S[n] = np.mean(rr)
+                k[n] = np.mean(kk[ind])
+                E2[n] = np.std(rr) / np.sqrt( rr.size/2 )
 
         return S, k, E2, flagPad
+
 
 
 def bouligand4(beta, zt, dz, kh, C=0.0):
@@ -725,7 +746,7 @@ def find_beta_zt_C_bound(Phi_exp, kh, beta, zt, C, zb, wlf=False):
     beta0, beta1, beta2 = beta
     zt0, zt1, zt2 = zt
     C0, C1, C2 = C
-    
+
     if wlf:
         w = np.linspace(2.0, 1.0, Phi_exp.size)
         w /= w.sum()
@@ -743,7 +764,7 @@ def find_beta_zt_C_bound(Phi_exp, kh, beta, zt, C, zb, wlf=False):
         return beta2-x[0], zt2-x[1], C2-x[2]
     def cons2(x):
         return x[1]-beta1, x[1]-zt1, x[2]-C1
-        
+
     xopt = fmin_cobyla(func, x0=np.array([beta0, zt0, C0]), cons=(cons1,cons2), args=(Phi_exp, kh, zb), consargs=(), disp=False)
     beta_opt = xopt[0]
     zt_opt = xopt[1]
@@ -1228,9 +1249,9 @@ if __name__ == '__main__':
 
     if testSpec:
         g = Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
-        g.readnc('NAmag/Qc_lcc_k.nc')
+        g.readnc('/Users/giroux/JacquesCloud/Projets/CDP/NAmag/Qc_lcc_k.nc')
 
-        S, k, E2, flag = g.getRadialSpectrum(606000.0, -1963000.0, 500000.0, tukey, detrend=1)
+        S, k, E2, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0, tukey, detrend=1)
 
         S2, k2, E22, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0, tukey)
 
@@ -1239,11 +1260,14 @@ if __name__ == '__main__':
 
         Phi_exp = bouligand4(beta1, zt, dz, k, C1)
 
+        S3, k3, E23, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 250000.0, tukey, detrend=1, mem=1)
 
+        plt.figure()
         plt.semilogx(k, S, k2, S2, k, Phi_exp)
         plt.legend(('1','2','3'))
         plt.show()
 
+        print('Done')
 
 #    g = Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
 #    g.readnc('NAmag/Qc_lcc_k.nc')

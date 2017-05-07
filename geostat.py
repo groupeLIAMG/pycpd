@@ -349,13 +349,13 @@ def cokri(x, x0, cm, itype, avg, block, nd, ival, nk, rad, ntok, verbose=False):
 
     """
 
-    x0s = np.array([])
-    s = np.array([])
+#     x0s = np.array([])
+#     s = np.array([])
     sv = np.array([])
     idout = np.array([])
-    l = np.array([])
-    K = np.array([])
-    K0 = np.array([])
+#     l = np.array([])
+#     K = np.array([])
+#     K0 = np.array([])
 
     if not isinstance(cm, list):
         cm = [cm]

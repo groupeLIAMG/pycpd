@@ -296,16 +296,26 @@ class SpectrumParams(QGroupBox):
         self.log = QCheckBox('Log scale')
         self.log.setChecked(True)
         
-        hbox = QHBoxLayout()
-        hbox.addWidget(QLabel('Size (km)'))
-        hbox.addWidget(self.winsize)
-        hbox.addWidget(QLabel('Detrending'))
-        hbox.addWidget(self.detrend)
-        hbox.addWidget(QLabel('Taper'))
-        hbox.addWidget(self.taperwin)
-        hbox.addWidget(self.log)
+        self.estimator = QComboBox()
+        self.estimator.addItems(('FFT','Maximum Entropy'))
+        self.estimator.setMaximumWidth(120)
+        self.order = QLineEdit('10')
         
-        self.setLayout(hbox)
+        gl = QGridLayout()
+        gl.addWidget(QLabel('Size (km)'), 0, 0)
+        gl.addWidget(self.winsize, 0, 1)
+        gl.addWidget(QLabel('Detrending'), 0, 2)
+        gl.addWidget(self.detrend, 0, 3)
+        gl.addWidget(QLabel('Taper'), 0, 4)
+        gl.addWidget(self.taperwin, 0, 5)
+        gl.addWidget(self.log, 0, 6)
+        
+        gl.addWidget(QLabel('Estimator'), 1, 0)
+        gl.addWidget(self.estimator, 1, 1)
+        gl.addWidget(QLabel('MEM order'), 1, 2)
+        gl.addWidget(self.order)
+        
+        self.setLayout(gl)
         
 class MausParams(QGroupBox):
     def __init__(self):
@@ -583,6 +593,8 @@ class PyCPD(QMainWindow):
         self.sp.log.stateChanged.connect(self.updateSpectrum)
         self.sp.taperwin.currentIndexChanged.connect(self.computeSpectrum)
         self.sp.winsize.textEdited.connect(self.computeSpectrum)
+        self.sp.estimator.currentIndexChanged.connect(self.computeSpectrum)
+        self.sp.order.textEdited.connect(self.computeSpectrum)
         
         self.lach.D.textEdited.connect(self.plotLachenbruch)
         self.lach.override.stateChanged.connect(self.plotLachenbruch)
@@ -711,8 +723,15 @@ class PyCPD(QMainWindow):
                 elif self.sp.taperwin.currentIndex() == 1:
                     win = hanning
                 detrend = self.sp.detrend.currentIndex()
+                
+                if self.sp.estimator.currentIndex() == 1:
+                    mem = True
+                else:
+                    mem = False
+                    
+                order = int(self.sp.order.text())
             
-                f.S_r, f.k_r, f.E2, fl = self.grid.getRadialSpectrum(f.x, f.y, ww, win, detrend)  # @UnusedVariable
+                f.S_r, f.k_r, f.E2, fl = self.grid.getRadialSpectrum(f.x, f.y, ww, win, detrend, mem=mem, order=order)  # @UnusedVariable
                 
                 self.updateSpectrum()
         
@@ -1033,16 +1052,18 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = PyCPD()
     
-#     db = shelve.open('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages','r')
-#     ex.forages = db['forages']
-#     db.close()
-#     ex.bh.setList(ex.forages)
-#     
-#     ex.grid = cpd.Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
-#     ex.grid.readnc('/Users/giroux/JacquesCloud/Projets/CDP/NAmag/Qc_lcc_k_cut.nc')
-#     ex.locmap.drawMap(ex.grid)
-#     ex.locmap.updateBhLoc(ex.forages[0])
-#     ex.computeSpectrum()
-#     ex.plotLachenbruch()
+    if os.path.isfile('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages'):
+        
+        db = shelve.open('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages','r')
+        ex.forages = db['forages']
+        db.close()
+        ex.bh.setList(ex.forages)
+         
+        ex.grid = cpd.Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
+        ex.grid.readnc('/Users/giroux/JacquesCloud/Projets/CDP/NAmag/Qc_lcc_k_cut.nc')
+        ex.locmap.drawMap(ex.grid)
+        ex.locmap.updateBhLoc(ex.forages[0])
+        ex.computeSpectrum()
+        ex.plotLachenbruch()
     
     sys.exit(app.exec_())
