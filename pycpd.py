@@ -83,10 +83,12 @@ class SpectrumCanvas(MyMplCanvas):
         if self.l1 == None:
             if logscale:
                 self.l1, self.l2 = self.axes.semilogx(f.k_r, f.S_r, f.k_r, Sm)
-                self.l3 = self.axes.fill_between(f.k_r, f.S_r-f.E2, f.S_r+f.E2, facecolor=[0.12156863, 0.46666667, 0.70588235, 0.2])
+                self.l3 = self.axes.fill_between(f.k_r, f.S_r-f.E2, f.S_r+f.E2,
+                                                 facecolor=[0.12156863, 0.46666667, 0.70588235, 0.2])
             else:
                 self.l1, self.l2 = self.axes.plot(f.k_r, f.S_r, f.k_r, Sm)
-                self.l3 = self.axes.fill_between(f.k_r, f.S_r-f.E2, f.S_r+f.E2, facecolor=[0.12156863, 0.46666667, 0.70588235, 0.2])
+                self.l3 = self.axes.fill_between(f.k_r, f.S_r-f.E2, f.S_r+f.E2,
+                                                 facecolor=[0.12156863, 0.46666667, 0.70588235, 0.2])
             self.t = self.axes.set_title('L-2 misfit: {0:g}'.format(el2))
             self.axes.set_xlabel('Wavenumber (rad/km)')
             self.axes.set_ylabel('Radial Spectrum')
@@ -98,7 +100,8 @@ class SpectrumCanvas(MyMplCanvas):
             self.l1.set_data(f.k_r, f.S_r)
             self.l2.set_data(f.k_r, Sm)
             self.l3.remove()
-            self.l3 = self.axes.fill_between(f.k_r, f.S_r-f.E2, f.S_r+f.E2, facecolor=[0.12156863, 0.46666667, 0.70588235, 0.2])
+            self.l3 = self.axes.fill_between(f.k_r, f.S_r-f.E2, f.S_r+f.E2,
+                                             facecolor=[0.12156863, 0.46666667, 0.70588235, 0.2])
 
             self.axes.relim()
             self.axes.autoscale_view()
@@ -139,10 +142,6 @@ class MapCanvas(MyMplCanvas):
         
         self.gxmin = grid.xwest
         self.gymin = grid.ysouth
-#         self.m = Basemap(width=(grid.xeast-grid.xwest), height=(grid.ynorth-grid.ysouth),
-#                     projection='lcc', lat_1=49.,lat_2=77,lat_0=63,lon_0=-92.,ellps='GRS80', #rsphere=(6378137.00,6356752.3142),
-#                     llcrnrlon=grid.c0[0], llcrnrlat=grid.c0[1],
-#                     urcrnrlon=grid.c1[0], urcrnrlat=grid.c1[1], resolution='l', ax=self.axes)
         self.m = Basemap(**bmpar)
         self.m.drawcoastlines()
         self.m.drawstates()
@@ -731,7 +730,8 @@ class PyCPD(QMainWindow):
                     
                 order = int(self.sp.order.text())
             
-                f.S_r, f.k_r, f.E2, fl = self.grid.getRadialSpectrum(f.x, f.y, ww, win, detrend, mem=mem, order=order)  # @UnusedVariable
+                f.S_r, f.k_r, f.E2, fl = self.grid.getRadialSpectrum(f.x, f.y, ww, win, detrend,
+                                                                     mem=mem, order=order)  # @UnusedVariable
                 
                 self.updateSpectrum()
         
@@ -1000,7 +1000,8 @@ class PyCPD(QMainWindow):
                 plt.legend()
                 plt.show()
             else:
-                QMessageBox.warning(self, 'Warning', 'No thermal conductivity simulation performed at this site', QMessageBox.Ok)
+                QMessageBox.warning(self, 'Warning', 'No thermal conductivity simulation performed at this site',
+                                    QMessageBox.Ok)
                 
     def plotLachenbruch(self):
         if self.forages != None:
@@ -1052,7 +1053,7 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = PyCPD()
     
-    if os.path.isfile('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages'):
+    if os.path.isfile('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages.db'):
         
         db = shelve.open('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages','r')
         ex.forages = db['forages']
