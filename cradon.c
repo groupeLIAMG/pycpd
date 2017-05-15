@@ -228,9 +228,12 @@
 
         npy_intp dims[] = {(npy_intp)nnz};
         PyObject* data = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, data_p);
+        PyArray_ENABLEFLAGS((PyArrayObject*)data, NPY_ARRAY_OWNDATA);
         PyObject* indices = PyArray_SimpleNewFromData(1, dims, NPY_INT64, indices_p);
+        PyArray_ENABLEFLAGS((PyArrayObject*)indices, NPY_ARRAY_OWNDATA);
         dims[0] = nTx+1;
         PyObject* indptr = PyArray_SimpleNewFromData(1, dims, NPY_INT64, indptr_p);
+        PyArray_ENABLEFLAGS((PyArrayObject*)indptr, NPY_ARRAY_OWNDATA);
         PyTuple_SetItem(L, 0, data);
         PyTuple_SetItem(L, 1, indices);
         PyTuple_SetItem(L, 2, indptr);
