@@ -341,7 +341,7 @@ class Grid2d:
         return Z[:self.ncol, :self.nrow].T  # transpose to have nx cols & ny rows
 
 
-    def getRadialSpectrum(self, xc, yc, ww, window=np.hanning, detrend=0, scalFac=0.001, mem=False, order=10):
+    def getRadialSpectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scalFac=0.001, mem=False, order=10):
         """
         Compute radial spectrum for point at (xc,yc) for square window of
         width equal to ww
@@ -351,7 +351,7 @@ class Grid2d:
         xc       : X coordinate of point
         yc       : Y coordinate of point
         ww       : window width
-        window   : padding window
+        taper    : taper window
         detrend  : control detrending of data
                    0 : data unchanged (default)
                    1 : remove best-fitting linear trend
@@ -431,20 +431,20 @@ class Grid2d:
             mid = 0.5 * (data.max() - data.min())
             data = data - mid
 
-        taper = np.ones(data.shape)
+        taper_val = np.ones(data.shape)
 
-        if window is tukey:
-            ht = window(taper.shape[0], alpha=0.05)  # Bouligand uses 5% tapering
+        if taper is tukey:
+            ht = taper(taper_val.shape[0], alpha=0.05)  # Bouligand uses 5% tapering
         else:
-            ht = window(taper.shape[0])
-        for n in range(taper.shape[1]):
-            taper[:,n] *= ht
-        if window is tukey:
-            ht = window(taper.shape[1], alpha=0.05)
+            ht = taper(taper_val.shape[0])
+        for n in range(taper_val.shape[1]):
+            taper_val[:,n] *= ht
+        if taper is tukey:
+            ht = taper(taper_val.shape[1], alpha=0.05)
         else:
-            ht = window(taper.shape[1])
-        for n in range(taper.shape[0]):
-            taper[n,:] *= ht
+            ht = taper(taper_val.shape[1])
+        for n in range(taper_val.shape[0]):
+            taper_val[n,:] *= ht
 
         dx = self.dx * scalFac  # from m to km
         dk = 2.0*np.pi / (nw-1) / dx
@@ -454,7 +454,7 @@ class Grid2d:
             E2 = np.zeros((k.size,))
 
             theta = np.pi*np.arange(0.0,180.0,5.0)/180.0
-            sinogram = radon.radon2d(data*taper, theta)
+            sinogram = radon.radon2d(data*taper_val, theta)
             SS = np.zeros((theta.size,k.size))
 
             for n in range(theta.size):
@@ -466,7 +466,7 @@ class Grid2d:
             E2 = np.std(SS, axis=0)
 
         else:
-            TF2D = np.abs(np.fft.fft2(data*taper))
+            TF2D = np.abs(np.fft.fft2(data*taper_val))
             TF2D = np.fft.fftshift(TF2D)
 
             kbins = np.arange(dk, dk*nw/2, dk)
@@ -1022,6 +1022,42 @@ def find_zb_zt_C(Phi_exp, kh, beta, zb0, zt0, C0, wlf=False):
     C_opt = xopt[0][2]
     misfit = xopt[1]
     return zb_opt, zt_opt, C_opt, misfit
+
+def find_zt_C(Phi_exp, kh, beta, zb, zt0, C0, wlf=False):
+    '''
+    Find fractal model parameters for a given radial spectrum
+
+    Parameters
+    ----------
+        Phi_exp : Spectrum values for kh
+        kh      : norm of the wave number in the horizontal plane
+        beta    : value of beta
+        zb      : depth to bottom of magnetic layer
+        zt0     : starting value of depth of top of magnetic layer
+        C0      : starting value of field constant (Maus et al., 1997)
+        wlf     : apply low frequency weighting
+
+    Returns
+    -------
+        zt, C, misfit
+    '''
+    if wlf:
+        w = np.linspace(2.0, 1.0, Phi_exp.size)
+        w /= w.sum()
+    else:
+        w = 1.0
+    # define function to minimize
+    def func(x, Phi_exp, kh, zb, beta):
+        zt = x[0]
+        C = x[1]
+        dz = zb - zt
+        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+
+    xopt = fmin(func, x0=np.array([zt0, C0]), args=(Phi_exp, kh, zb, beta), full_output=True, disp=False)
+    zt_opt = xopt[0][0]
+    C_opt = xopt[0][1]
+    misfit = xopt[1]
+    return zt_opt, C_opt, misfit
 
 def hfu(x):
     '''
