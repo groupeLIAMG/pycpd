@@ -322,8 +322,13 @@ class MausParams(QGroupBox):
         
         self.bbeta = (1.0, 6.0)
         self.bzt = (0.0, 5.0)
-        self.bdz = (10.0, 150.0)
-        self.bC = (16.0, 26.0)
+        self.bdz = (5.0, 150.0)
+        self.bC = (3.0, 30.0)
+        
+        self.beta_fac = int(100*(0.00001+self.bbeta[1]-self.bbeta[0]))
+        self.zt_fac = int(10*(0.00001+self.bzt[1]-self.bzt[0]))
+        self.dz_fac = int(10*(0.00001+self.bdz[1]-self.bdz[0]))
+        self.C_fac = int(10*(0.00001+self.bC[1]-self.bC[0]))
         
         self.initUI()
         
@@ -337,26 +342,26 @@ class MausParams(QGroupBox):
         
         self.betasl = QSlider(Qt.Horizontal)
         self.betasl.setMinimumWidth(100)
-        self.betasl.setMaximum(500)
-        val = int((beta-self.bbeta[0])/(self.bbeta[1]-self.bbeta[0]) * 500)
+        self.betasl.setMaximum(self.beta_fac)
+        val = int((beta-self.bbeta[0])/(self.bbeta[1]-self.bbeta[0]) * self.beta_fac)
         self.betasl.setValue(val)
         
         self.ztsl = QSlider(Qt.Horizontal)  
         self.ztsl.setMinimumWidth(100)
-        self.ztsl.setMaximum(50)
-        val = int((zt-self.bzt[0])/(self.bzt[1]-self.bzt[0]) * 50)
+        self.ztsl.setMaximum(self.zt_fac)
+        val = int((zt-self.bzt[0])/(self.bzt[1]-self.bzt[0]) * self.zt_fac)
         self.ztsl.setValue(val)
         
         self.dzsl = QSlider(Qt.Horizontal)
         self.dzsl.setMinimumWidth(100)
-        self.dzsl.setMaximum(1400)
-        val = int((dz-self.bdz[0])/(self.bdz[1]-self.bdz[0]) * 1400)
+        self.dzsl.setMaximum(self.dz_fac)
+        val = int((dz-self.bdz[0])/(self.bdz[1]-self.bdz[0]) * self.dz_fac)
         self.dzsl.setValue(val)
         
         self.Csl = QSlider(Qt.Horizontal)
         self.Csl.setMinimumWidth(100)
-        self.Csl.setMaximum(100)
-        val = int((C-self.bC[0])/(self.bC[1]-self.bC[0]) * 100)
+        self.Csl.setMaximum(self.C_fac)
+        val = int((C-self.bC[0])/(self.bC[1]-self.bC[0]) * self.C_fac)
         self.Csl.setValue(val)
                 
         self.betaed = QLineEdit('{0:5.2f}'.format(beta))
@@ -383,10 +388,10 @@ class MausParams(QGroupBox):
         self.dzsl.valueChanged.connect(self.dzslChanged)
         self.Csl.valueChanged.connect(self.CslChanged)
         
-        self.betaed.textEdited.connect(self.betaeChanged)
-        self.zted.textEdited.connect(self.zteChanged)
-        self.dzed.textEdited.connect(self.dzeChanged)
-        self.Ced.textEdited.connect(self.CeChanged)
+        self.betaed.editingFinished.connect(self.betaeChanged)
+        self.zted.editingFinished.connect(self.zteChanged)
+        self.dzed.editingFinished.connect(self.dzeChanged)
+        self.Ced.editingFinished.connect(self.CeChanged)
         
         gl.addWidget(QLabel('Beta'), 1, 0)
         gl.addWidget(QLabel('zt (km)'), 2, 0)
@@ -417,42 +422,42 @@ class MausParams(QGroupBox):
         
     def betaslChanged(self):
         val = self.betasl.value()
-        val = self.bbeta[0] + (1.0*val)/500.0 * (self.bbeta[1]-self.bbeta[0])
+        val = self.bbeta[0] + (1.0*val)/self.beta_fac * (self.bbeta[1]-self.bbeta[0])
         self.betaed.setText('{0:5.2f}'.format(val))
 
     def ztslChanged(self):
         val = self.ztsl.value()
-        val = self.bzt[0] + (1.0*val)/50.0 * (self.bzt[1]-self.bzt[0])
+        val = self.bzt[0] + (1.0*val)/self.zt_fac * (self.bzt[1]-self.bzt[0])
         self.zted.setText('{0:5.1f}'.format(val))
 
     def dzslChanged(self):
         val = self.dzsl.value()
-        val = self.bdz[0] + (1.0*val)/1400.0 * (self.bdz[1]-self.bdz[0])
+        val = self.bdz[0] + (1.0*val)/self.dz_fac * (self.bdz[1]-self.bdz[0])
         self.dzed.setText('{0:5.1f}'.format(val))
 
     def CslChanged(self):
         val = self.Csl.value()
-        val = self.bC[0] + (1.0*val)/100.0 * (self.bC[1]-self.bC[0])
+        val = self.bC[0] + (1.0*val)/self.C_fac * (self.bC[1]-self.bC[0])
         self.Ced.setText('{0:5.1f}'.format(val))
         
     def betaeChanged(self):
         val = float(self.betaed.text())
-        val = int((val-self.bbeta[0])/(self.bbeta[1]-self.bbeta[0]) * 500)
+        val = int((val-self.bbeta[0])/(self.bbeta[1]-self.bbeta[0]) * self.beta_fac)
         self.betasl.setValue(val)
 
     def zteChanged(self):
         val = float(self.zted.text())
-        val = int((val-self.bzt[0])/(self.bzt[1]-self.bzt[0]) * 50)
+        val = int((val-self.bzt[0])/(self.bzt[1]-self.bzt[0]) * self.zt_fac)
         self.ztsl.setValue(val)
 
     def dzeChanged(self):
         val = float(self.dzed.text())
-        val = int((val-self.bdz[0])/(self.bdz[1]-self.bdz[0]) * 1400)
+        val = int((val-self.bdz[0])/(self.bdz[1]-self.bdz[0]) * self.dz_fac)
         self.dzsl.setValue(val)
 
     def CeChanged(self):
         val = float(self.Ced.text())
-        val = int((val-self.bC[0])/(self.bC[1]-self.bC[0]) * 100)
+        val = int((val-self.bC[0])/(self.bC[1]-self.bC[0]) * self.C_fac)
         self.Csl.setValue(val)
         
         
@@ -581,25 +586,25 @@ class PyCPD(QMainWindow):
         self.mp.ztsl.valueChanged.connect(self.updateSpectrum)
         self.mp.dzsl.valueChanged.connect(self.updateSpectrum)
         self.mp.Csl.valueChanged.connect(self.updateSpectrum)
-        self.mp.betaed.textEdited.connect(self.updateSpectrum)
-        self.mp.zted.textEdited.connect(self.updateSpectrum)
-        self.mp.dzed.textEdited.connect(self.updateSpectrum)
-        self.mp.Ced.textEdited.connect(self.updateSpectrum)
+        self.mp.betaed.editingFinished.connect(self.updateSpectrum)
+        self.mp.zted.editingFinished.connect(self.updateSpectrum)
+        self.mp.dzed.editingFinished.connect(self.updateSpectrum)
+        self.mp.Ced.editingFinished.connect(self.updateSpectrum)
         self.mp.fit2step.clicked.connect(self.fitSpec2step)
         self.mp.fit.clicked.connect(self.fitSpectrum)
         
         self.sp.detrend.currentIndexChanged.connect(self.computeSpectrum)
         self.sp.log.stateChanged.connect(self.updateSpectrum)
         self.sp.taperwin.currentIndexChanged.connect(self.computeSpectrum)
-        self.sp.winsize.textEdited.connect(self.computeSpectrum)
+        self.sp.winsize.editingFinished.connect(self.computeSpectrum)
         self.sp.estimator.currentIndexChanged.connect(self.computeSpectrum)
-        self.sp.order.textEdited.connect(self.computeSpectrum)
+        self.sp.order.editingFinished.connect(self.computeSpectrum)
         
-        self.lach.D.textEdited.connect(self.plotLachenbruch)
+        self.lach.D.editingFinished.connect(self.plotLachenbruch)
         self.lach.override.stateChanged.connect(self.plotLachenbruch)
-        self.lach.Q0.textEdited.connect(self.lachEdited)
-        self.lach.A.textEdited.connect(self.lachEdited)
-        self.lach.k.textEdited.connect(self.lachEdited)
+        self.lach.Q0.editingFinished.connect(self.lachEdited)
+        self.lach.A.editingFinished.connect(self.lachEdited)
+        self.lach.k.editingFinished.connect(self.lachEdited)
 
 
         hbox = QHBoxLayout()
@@ -931,6 +936,11 @@ class PyCPD(QMainWindow):
                 x = cpd.find_zt_dz(Phi_exp=f.S_r, kh=f.k_r, zt0=zt, dz0=dz, beta=beta, C=C, wlf=lfc)
                 zt = x[0]
                 dz = x[1]
+            # beta and dz fixed
+            elif betac and not ztc and dzc and not Cc:
+                x = cpd.find_zt_C(Phi_exp=f.S_r, kh=f.k_r, beta=beta, zb=dz+zt, zt0=zt, C0=C, wlf=lfc)
+                zt = x[0]
+                C = x[1]
             else:
                 QMessageBox.warning(self, 'Warning', 'Combination of fixed parameters not implemented', QMessageBox.Ok)
                 return
