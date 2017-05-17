@@ -6,3 +6,4 @@ build/
 .settings/
 .DS_Store
 radon*.so
+radon.c
