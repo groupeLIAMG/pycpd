@@ -962,6 +962,90 @@ def varioexp2d(x, y, v, nbclas, lclas, vdir, vtol, bandwidth):
 
     return gexp
 
+def crossvarioexp2d(x, y, v1, v2, nbclas, lclas, vdir, vtol, bandwidth):
+    """
+    Experimental variogram in 2D
+
+    INPUT
+        x  : X coordinates       (nv,)
+        y  : Y coordinates       (nv,)
+        v1 : 1st variable values (nv,)
+        v2 : 2nd variable values (nv,)
+        nbclas : nb of classes
+        lclas  : length of classes. Scalar or n x 2 array with lag limits
+                    on each line (min, max)
+        vdir   : directions (azimuth)  (deg)
+        vtol   : tolerance angle (90° for omni-directional variogram) (deg)
+        bandwidth : ignored if vtol >= 90°
+
+    OUTPUT
+        gexp : 3d array of size nclas x 5 x ndir
+                1st "column" : average distance
+                2nd "column" : nb of pairs
+                3rd "column" : variogram of v1
+                4th "column" : variogram of v2
+                5th "column" : cross variogram
+    """
+    if len(lclas) == 1:
+        lclas = lclas*np.vstack((np.arange(0,nbclas),
+                                 np.arange(1,(1+nbclas)))).T
+    ncl = lclas.shape[0]
+
+    if vdir.shape[0] != vtol.size:
+        raise ValueError('Number of directions inconsistent with nb of regularization')
+    ndir = vdir.shape[0]
+
+    n = x.size
+    gexp = np.zeros((ncl, 5, ndir))
+    u = _poletocart(np.vstack((vdir, np.zeros((ndir,)))).T)
+    tol = np.cos(vtol * np.pi/180)
+
+    for i in range(n-1):
+        yt = np.vstack((i+np.zeros((n-i-1,),dtype=int), np.arange(i+1,n,dtype=int))).T
+
+        dx = x[yt[:,1]]-x[yt[:,0]]
+        dy = y[yt[:,1]]-y[yt[:,0]]
+        ht = np.sqrt( dx*dx + dy*dy )
+
+        uobs = np.zeros((dx.shape[0],3))
+        uobs[:,0] = dx/ht
+        uobs[:,1] = dy/ht
+
+        for idir in range(ndir):
+            
+            da = np.dot(uobs, u[idir,:].T)
+            if vtol[idir] < 90.0:
+                # compute distance between pts and azimuth line
+                c = -(u[idir,0]*x[i] + u[idir,1]*y[i])
+                dist = np.abs(u[idir,0]*x[yt[:,1]] + u[idir,1]*y[yt[:,1]] + c) / np.sqrt(u[idir,0]*u[idir,0] + u[idir,1]*u[idir,1])
+                ind = np.logical_and(np.abs(da) >= tol[idir], dist < bandwidth[idir])
+            else:
+                ind = np.abs(da) >= tol[idir]
+
+            h = ht[ind]
+            yy = yt[ind,:]
+
+            var1 = 0.5 * (v1[yy[:,0]] - v1[yy[:,1]])**2
+            var2 = 0.5 * (v2[yy[:,0]] - v2[yy[:,1]])**2
+            cvar = 0.5 * (v1[yy[:,0]] - v1[yy[:,1]]) * (v2[yy[:,0]] - v2[yy[:,1]])
+
+            for ic in range(ncl):
+                ind = np.logical_and(h>lclas[ic,0], h<=lclas[ic,1])
+                gexp[ic,1,idir] += np.sum(ind)
+                gexp[ic,0,idir] += np.sum(h[ind])
+                gexp[ic,2,idir] += np.sum(var1[ind])
+                gexp[ic,3,idir] += np.sum(var2[ind])
+                gexp[ic,4,idir] += np.sum(cvar[ind])
+
+    for idir in range(ndir):
+        ind = gexp[:,1,idir] > 0
+        gexp[ind,0,idir] /= gexp[ind,1,idir]
+        gexp[ind,2,idir] /= gexp[ind,1,idir]
+        gexp[ind,3,idir] /= gexp[ind,3,idir]
+        gexp[ind,4,idir] /= gexp[ind,4,idir]
+
+    return gexp
+
 def _poletocart(pole):
     pole *= np.pi/180.0
     x = np.zeros((pole.shape[0], 3))
