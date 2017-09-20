@@ -311,10 +311,10 @@ class SpectrumParams(QGroupBox):
         self.log.setChecked(True)
         
         self.estimator = QComboBox()
-#        self.estimator.addItems(('FFT','Maximum Entropy (Srinivasa)', 'Maximum Entropy (Lim-Malik)'))
-        self.estimator.addItems(('FFT','Maximum Entropy'))
+        self.estimator.addItems(('FFT','Maximum Entropy (Srinivasa)', 'Maximum Entropy (Lim-Malik)'))
+#        self.estimator.addItems(('FFT','Maximum Entropy'))
         self.estimator.setMaximumWidth(120)
-        self.order = QLineEdit('10')
+        self.order = QLineEdit('3')
         self.order.setValidator(QIntValidator())
         
         gl = QGridLayout()
