@@ -489,6 +489,88 @@ class LachenbruchParams(QGroupBox):
         
         self.setLayout(hbox)
 
+class ProjSelection(QDialog):
+    def __init__(self, parent=None):
+        super(ProjSelection, self).__init__(parent)
+        self.setWindowTitle('Grid Projection parameters')
+        self.result = ''
+        #================================================= ===============================
+        # listbox
+        #================================================= ===============================
+        self.listWidget = QListWidget()
+        
+        item_ls = ('Québec : +proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+                   'DNAG : +proj=tmerc +k_0=0.926 _lat_0=0.0 +lon_0=-100.0 +a=6371204.0 +b=6371204.0 +x_0=0 +y_0=0 +units=m +no_defs')
+        
+        for item in item_ls:
+            w_item = QListWidgetItem(item)
+            self.listWidget.addItem(w_item)
+        self.listWidget.itemClicked.connect(self.onSingleClick)
+        self.listWidget.itemActivated.connect(self.onDoubleClick)
+        layout = QGridLayout()
+        row = 0
+        layout.addWidget(QLabel('Predefined proj4 strings'),row,0)
+        row += 1
+        layout.addWidget(self.listWidget,row,0,1,3) #col span=1, row span=3
+        
+        row += 1
+        layout.addWidget(QLabel('Custom proj4 string'),row,0)
+        self.proj4string = QLineEdit()
+        self.proj4string.editingFinished.connect(self.projEdited)
+        row += 1
+        layout.addWidget(self.proj4string,row,0,1,3)
+        #================================================= ===============================
+        # OK, Cancel
+        #================================================= ===============================
+        row +=1
+        self.but_ok = QPushButton('OK')
+        layout.addWidget(self.but_ok ,row,1)
+        self.but_ok.clicked.connect(self.onOk)
+        
+        self.but_cancel = QPushButton('Cancel')
+        layout.addWidget(self.but_cancel ,row,2)
+        self.but_cancel.clicked.connect(self.onCancel)
+        
+        #================================================= ===============================
+        #
+        #================================================= ===============================
+        self.setLayout(layout)
+        self.setGeometry(300, 200, 560, 250)
+    
+    def onSingleClick(self, item):
+        val = item.text().split(':')
+        if len(val) == 2:
+            self.result = val[1]
+        else:
+            self.result = val[0]
+        self.proj4string.setText(self.result)
+        self.proj4string.setCursorPosition(0)
+
+    def onDoubleClick(self, item):
+        val = item.text().split(':')
+        if len(val) == 2:
+            self.result = val[1]
+        else:
+            self.result = val[0]
+        self.accept()
+        return self.result
+    
+    def projEdited(self):
+        self.result = self.proj4string.text()
+    
+    def onOk(self):
+        self.accept()
+        return self.result
+    
+    def onCancel(self):
+        self.reject()
+    
+    def getValue(self):
+        return self.result
+
+
+
+
 class PyCPD(QMainWindow):
     
     def __init__(self):
@@ -846,9 +928,13 @@ class PyCPD(QMainWindow):
         
     def loadMag(self):
         oldgrid = self.grid  # store current grid in case we cannot load new stuff
-        proj4string, ok = QInputDialog.getText(self, 'Grid Projection', 'Enter proj4 string:')
-        if not ok:
+        
+        pselect = ProjSelection()
+        if pselect.exec_():
+            proj4string = pselect.getValue()
+        else:
             return
+        
         fname = QFileDialog.getOpenFileName(self, 'Open file', os.path.expanduser('~/'), 'netcdf (*.nc *.grd);;USGS (*.SGD)')
         if fname[0]:
             try:
