@@ -40,6 +40,15 @@ from mem import lim_malik
 import radon
 import spectrum
 
+dz_lb = 3.0
+dz_ub = 80.0
+zt_lb = 0.0
+zt_ub = 5.0
+beta_lb = 1.5
+beta_ub = 5.8
+C_lb = -np.inf
+C_ub = np.inf
+
 class Point:
     def __init__(self, x, y):
         self.x = x
@@ -554,18 +563,23 @@ def bouligand4(beta, zt, dz, kh, C=0.0):
     Phi1d += np.log(A)
     return Phi1d
 
-def find_beta(zb, Phi_exp, kh, beta0, zt=1.0, C=0, wlf=False):
+def find_beta(dz, Phi_exp, kh, beta0, zt=1.0, C=0, wlf=False, method='fmin', lb=[], ub=[]):
     '''
     Find fractal parameter beta for a given radial spectrum
 
     Parameters
     ----------
+        dz      : thichness of magnetic layer
         Phi_exp : Spectrum values for kh
         kh      : norm of the wave number in the horizontal plane
         beta0   : starting value
         zt      : depth of top of magnetic layer
         C       : field constant (Maus et al., 1997)
         wlf     : apply low frequency weighting
+        method  : 'fmin' -> simplex method
+                  'ls' -> least-squares
+        lb      : lower bounds for least-squares (beta)
+        ub      : upper bounds for least-squares (beta)
 
     Returns
     -------
@@ -576,25 +590,46 @@ def find_beta(zb, Phi_exp, kh, beta0, zt=1.0, C=0, wlf=False):
     else:
         w = 1.0
     # define function to minimize
-    def func(beta, zb, Phi_exp, zt, kh, C):
-        dz = zb - zt
+    def func(beta, dz, Phi_exp, zt, kh, C):
         return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
 
-    beta_opt = fmin(func, x0=beta0, args=(zb, Phi_exp, zt, kh, C), full_output=True, disp=False)
-    return beta_opt[0][0],  beta_opt[1]
+    if method == 'fmin':
+        xopt = fmin(func, x0=beta0, args=(dz, Phi_exp, zt, kh, C), full_output=True, disp=False)
+        beta_opt = xopt[0][0]
+        misfit = xopt[1]
 
-def find_zt(zb, Phi_exp, kh, beta, zt0, C=0, wlf=False):
+    elif method == 'ls':
+        if len(lb) == 0:
+            lb = np.array([beta_lb])
+        if len(ub) == 0:
+            ub = np.array([beta_ub])
+    
+        res = least_squares(func, x0=beta0, jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, zt, kh, C))
+        beta_opt = res.x[0]
+        misfit = res.cost
+
+    if wlf:
+        misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt, dz, kh, C))
+        
+    return beta_opt, misfit
+
+def find_zt(dz, Phi_exp, kh, beta, zt0, C=0, wlf=False, method='fmin', lb=[], ub=[]):
     '''
     Find depth of top of magnetic layer for a given radial spectrum
 
     Parameters
     ----------
+        dz      : thichness of magnetic layer
         Phi_exp : Spectrum values for kh
         kh      : norm of the wave number in the horizontal plane
         beta    : fractal paremeter
         zt0     : starting value
         C       : field constant (Maus et al., 1997)
         wlf     : apply low frequency weighting
+        method  : 'fmin' -> simplex method
+                  'ls' -> least-squares
+        lb      : lower bounds for least-squares (zt)
+        ub      : upper bounds for least-squares (zt)
 
     Returns
     -------
@@ -605,14 +640,30 @@ def find_zt(zb, Phi_exp, kh, beta, zt0, C=0, wlf=False):
     else:
         w = 1.0
     # define function to minimize
-    def func(zt, zb, Phi_exp, beta, kh, C):
-        dz = zb - zt
+    def func(zt, dz, Phi_exp, beta, kh, C):
         return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
 
-    xopt = fmin(func, x0=zt0, args=(zb, Phi_exp, beta, kh, C), full_output=True, disp=False)
-    return xopt[0][0], xopt[1]
+    if method == 'fmin':
+        xopt = fmin(func, x0=zt0, args=(dz, Phi_exp, beta, kh, C), full_output=True, disp=False)
+        zt_opt = xopt[0][0]
+        misfit = xopt[1]
 
-def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False):
+    elif method == 'ls':
+        if len(lb) == 0:
+            lb = np.array([zt_lb])
+        if len(ub) == 0:
+            ub = np.array([zt_ub])
+    
+        res = least_squares(func, x0=zt0, jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, beta, kh, C))
+        zt_opt = res.x[0]
+        misfit = res.cost
+
+    if wlf:
+        misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, dz, kh, C))
+        
+    return zt_opt, misfit
+
+def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False, method='fmin', lb=[], ub=[]):
     '''
     Find thichness of magnetic layer for a given radial spectrum
 
@@ -625,6 +676,10 @@ def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False):
         zt      : depth of top of magnetic layer
         C       : field constant (Maus et al., 1997)
         wlf     : apply low frequency weighting
+        method  : 'fmin' -> simplex method
+                  'ls' -> least-squares
+        lb      : lower bounds for least-squares (dz)
+        ub      : upper bounds for least-squares (dz)
 
     Returns
     -------
@@ -638,10 +693,27 @@ def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False):
     def func(dz, zt, Phi_exp, beta, kh, C):
         return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
 
-    xopt = fmin(func, x0=dz0, args=(zt, Phi_exp, beta, kh, C), full_output=True, disp=False)
-    return xopt[0][0], xopt[1]
+    if method == 'fmin':
+        xopt = fmin(func, x0=dz0, args=(zt, Phi_exp, beta, kh, C), full_output=True, disp=False)
+        dz_opt = xopt[0][0]
+        misfit = xopt[1]
 
-def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False):
+    elif method == 'ls':
+        if len(lb) == 0:
+            lb = np.array([dz_lb])
+        if len(ub) == 0:
+            ub = np.array([dz_ub])
+    
+        res = least_squares(func, x0=dz0, jac='3-point', bounds=(lb,ub), args=(zt, Phi_exp, beta, kh, C))
+        dz_opt = res.x[0]
+        misfit = res.cost
+
+    if wlf:
+        misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt, dz_opt, kh, C))
+        
+    return dz_opt, misfit
+
+def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False, method='fmin', lb=[], ub=[]):
     '''
     Find field constant for a given radial spectrum
 
@@ -654,6 +726,10 @@ def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False):
         zt      : depth of top of magnetic layer
         C0      : starting value of field constant (Maus et al., 1997)
         wlf     : apply low frequency weighting
+        method  : 'fmin' -> simplex method
+                  'ls' -> least-squares
+        lb      : lower bounds for least-squares (C)
+        ub      : upper bounds for least-squares (C)
 
     Returns
     -------
@@ -667,11 +743,28 @@ def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False):
     def func(C, zt, Phi_exp, beta, kh, dz):
         return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
 
-    xopt = fmin(func, x0=C0, args=(zt, Phi_exp, beta, kh, dz), full_output=True, disp=False)
-    return xopt[0][0], xopt[1]
+    if method == 'fmin':
+        xopt = fmin(func, x0=C0, args=(zt, Phi_exp, beta, kh, dz), full_output=True, disp=False)
+        C_opt = xopt[0][0]
+        misfit = xopt[1]
+        
+    elif method == 'ls':
+        if len(lb) == 0:
+            lb = np.array([C_lb])
+        if len(ub) == 0:
+            ub = np.array([C_ub])
+    
+        res = least_squares(func, x0=C0, jac='3-point', bounds=(lb,ub), args=(zt, Phi_exp, beta, kh, dz))
+        C_opt = res.x[0]
+        misfit = res.cost
+
+    if wlf:
+        misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt, dz, kh, C_opt))
+        
+    return C_opt, misfit
 
 
-def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False):
+def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False, method='fmin', lb=[], ub=[]):
     '''
     Find fractal model parameters for a given radial spectrum
 
@@ -684,6 +777,10 @@ def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False):
         dz0     : starting value of layer thickness
         C0      : starting value of field constant (Maus et al., 1997)
         wlf     : apply low frequency weighting
+        method  : 'fmin' -> simplex method
+                  'ls' -> least-squares
+        lb      : lower bounds for least-squares (beta, zt, dz, C)
+        ub      : upper bounds for least-squares (beta, zt, dz, C)
 
     Returns
     -------
@@ -701,15 +798,33 @@ def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False):
         C = x[3]
         return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
 
-    xopt = fmin(func, x0=np.array([beta0, zt0, dz0, C0]), args=(Phi_exp, kh), full_output=True, disp=False)
-    beta_opt = xopt[0][0]
-    zt_opt = xopt[0][1]
-    dz_opt = xopt[0][2]
-    C_opt = xopt[0][3]
-    misfit = xopt[1]
+    if method == 'fmin':
+        xopt = fmin(func, x0=np.array([beta0, zt0, dz0, C0]), args=(Phi_exp, kh), full_output=True, disp=False)
+        beta_opt = xopt[0][0]
+        zt_opt = xopt[0][1]
+        dz_opt = xopt[0][2]
+        C_opt = xopt[0][3]
+        misfit = xopt[1]
+
+    elif method == 'ls':
+        if len(lb) == 0:
+            lb = np.array([beta_lb, zt_lb, dz_lb, C_lb])
+        if len(ub) == 0:
+            ub = np.array([beta_ub, zt_ub, dz_ub, C_ub])
+    
+        res = least_squares(func, x0=np.array([beta0, zt0, dz0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh))
+        beta_opt = res.x[0]
+        zt_opt = res.x[1]
+        dz_opt = res.x[2]
+        C_opt = res.x[3]
+        misfit = res.cost
+
+    if wlf:
+        misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt_opt, dz_opt, kh, C_opt))
+        
     return beta_opt, zt_opt, dz_opt, C_opt, misfit
 
-def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, zb, wlf=False):
+def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb=[], ub=[]):
     '''
     Find fractal model parameters, depth of top of magnetic layer and
     constant C for a given radial spectrum and depth to bottom value
@@ -721,8 +836,12 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, zb, wlf=False):
         beta0   : starting value of beta
         zt0     : starting value of depth to top of magnetic layer
         C0      : starting value of field constant (Maus et al., 1997)
-        zb      : depth of bottom of magnetic layer
+        dz      : thickness of magnetic layer
         wlf     : apply low frequency weighting
+        method  : 'fmin' -> simplex method
+                  'ls' -> least-squares
+        lb      : lower bounds for least-squares (beta, zt, C)
+        ub      : upper bounds for least-squares (beta, zt, C)
 
     Returns
     -------
@@ -733,18 +852,34 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, zb, wlf=False):
     else:
         w = 1.0
     # define function to minimize
-    def func(x, Phi_exp, kh, zb):
+    def func(x, Phi_exp, kh, dz):
         beta = x[0]
         zt = x[1]
-        dz = zb-zt
         C = x[2]
         return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
 
-    xopt = fmin(func, x0=np.array([beta0, zt0, C0]), args=(Phi_exp, kh, zb), full_output=True, disp=False)
-    beta_opt = xopt[0][0]
-    zt_opt = xopt[0][1]
-    C_opt = xopt[0][2]
-    misfit = xopt[1]
+    if method == 'fmin':
+        xopt = fmin(func, x0=np.array([beta0, zt0, C0]), args=(Phi_exp, kh, dz), full_output=True, disp=False)
+        beta_opt = xopt[0][0]
+        zt_opt = xopt[0][1]
+        C_opt = xopt[0][2]
+        misfit = xopt[1]
+
+    elif method == 'ls':
+        if len(lb) == 0:
+            lb = np.array([beta_lb, zt_lb, C_lb])
+        if len(ub) == 0:
+            ub = np.array([beta_ub, zt_ub, C_ub])
+    
+        res = least_squares(func, x0=np.array([beta0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz))
+        beta_opt = res.x[0]
+        zt_opt = res.x[1]
+        C_opt = res.x[2]
+        misfit = res.cost
+
+    if wlf:
+        misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt_opt, dz, kh, C_opt))
+        
     return beta_opt, zt_opt, C_opt, misfit
 
 def find_beta_zt_C_bound(Phi_exp, kh, beta, zt, C, zb, wlf=False):
@@ -794,7 +929,7 @@ def find_beta_zt_C_bound(Phi_exp, kh, beta, zt, C, zb, wlf=False):
     misfit = func(xopt, Phi_exp, kh, zb)
     return beta_opt, zt_opt, C_opt, misfit
 
-def find_beta_zb_C(Phi_exp, kh, beta0, zb0, C0, zt=1.0, wlf=False):
+def find_beta_dz_C(Phi_exp, kh, beta0, dz0, C0, zt=1.0, wlf=False, method='fmin', lb=[], ub=[]):
     '''
     Find fractal model parameters, depth of bottom of magnetic layer and
     constant C for a given radial spectrum
@@ -804,47 +939,14 @@ def find_beta_zb_C(Phi_exp, kh, beta0, zb0, C0, zt=1.0, wlf=False):
         Phi_exp : Spectrum values for kh
         kh      : norm of the wave number in the horizontal plane
         beta0   : starting value of beta
-        zb0     : starting value of depth to bottom of magnetic layer
+        dz0     : starting value of thickness of magnetic layer
         C0      : starting value of field constant (Maus et al., 1997)
         zt      : depth of top of magnetic layer
         wlf     : apply low frequency weighting
-
-    Returns
-    -------
-        beta, zb, C, misfit
-    '''
-    if wlf:
-        w = np.linspace(1.5, 0.5, Phi_exp.size)
-    else:
-        w = 1.0
-    # define function to minimize
-    def func(x, Phi_exp, kh, zt):
-        beta = x[0]
-        dz = x[1]-zt
-        C = x[2]
-        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
-
-    xopt = fmin(func, x0=np.array([beta0, zb0, C0]), args=(Phi_exp, kh, zt), full_output=True, disp=False)
-    beta_opt = xopt[0][0]
-    zb_opt = xopt[0][1]
-    C_opt = xopt[0][2]
-    misfit = xopt[1]
-    return beta_opt, zb_opt, C_opt, misfit
-
-def find_beta_zb_zt(Phi_exp, kh, beta0, zb0, zt0, C, wlf=False):
-    '''
-    Find fractal model parameters, depth of bottom and depth to top of magnetic
-    layer for a given radial spectrum
-
-    Parameters
-    ----------
-        Phi_exp : Spectrum values for kh
-        kh      : norm of the wave number in the horizontal plane
-        beta0   : starting value of beta
-        zb0     : starting value of depth to bottom of magnetic layer
-        zt0     : starting value of depth of top of magnetic layer
-        C       : field constant (Maus et al., 1997)
-        wlf     : apply low frequency weighting
+        method  : 'fmin' -> simplex method
+                  'ls' -> least-squares
+        lb      : lower bounds for least-squares (beta, dz, C)
+        ub      : upper bounds for least-squares (beta, dz, C)
 
     Returns
     -------
@@ -855,31 +957,111 @@ def find_beta_zb_zt(Phi_exp, kh, beta0, zb0, zt0, C, wlf=False):
     else:
         w = 1.0
     # define function to minimize
+    def func(x, Phi_exp, kh, zt):
+        beta = x[0]
+        dz = x[1]
+        C = x[2]
+        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+
+    if method == 'fmin':
+        xopt = fmin(func, x0=np.array([beta0, dz0, C0]), args=(Phi_exp, kh, zt), full_output=True, disp=False)
+        beta_opt = xopt[0][0]
+        dz_opt = xopt[0][1]
+        C_opt = xopt[0][2]
+        misfit = xopt[1]
+        
+    elif method == 'ls':
+        if len(lb) == 0:
+            lb = np.array([beta_lb, dz_lb, C_lb])
+        if len(ub) == 0:
+            ub = np.array([beta_ub, dz_ub, C_ub])
+    
+        res = least_squares(func, x0=np.array([beta0, dz0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, zt))
+        beta_opt = res.x[0]
+        dz_opt = res.x[1]
+        C_opt = res.x[2]
+        misfit = res.cost
+
+    if wlf:
+        misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt, dz_opt, kh, C_opt))
+        
+    return beta_opt, dz_opt, C_opt, misfit
+
+def find_beta_dz_zt(Phi_exp, kh, beta0, dz0, zt0, C, wlf=False, method='fmin', lb=[], ub=[]):
+    '''
+    Find fractal model parameters, depth of bottom and depth to top of magnetic
+    layer for a given radial spectrum
+
+    Parameters
+    ----------
+        Phi_exp : Spectrum values for kh
+        kh      : norm of the wave number in the horizontal plane
+        beta0   : starting value of beta
+        dz0     : starting value of thickness of magnetic layer
+        zt0     : starting value of depth of top of magnetic layer
+        C       : field constant (Maus et al., 1997)
+        wlf     : apply low frequency weighting
+        method  : 'fmin' -> simplex method
+                  'ls' -> least-squares
+        lb      : lower bounds for least-squares (beta, dz, zt)
+        ub      : upper bounds for least-squares (beta, dz, zt)
+
+    Returns
+    -------
+        beta, dz, zt, misfit
+    '''
+    if wlf:
+        w = np.linspace(1.5, 0.5, Phi_exp.size)
+    else:
+        w = 1.0
+    # define function to minimize
     def func(x, Phi_exp, kh, C):
         beta = x[0]
-        dz = x[1]-x[2]
+        dz = x[1]
         zt = x[2]
         return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
 
-    xopt = fmin(func, x0=np.array([beta0, zb0, zt0]), args=(Phi_exp, kh, C), full_output=True, disp=False)
-    beta_opt = xopt[0][0]
-    zb_opt = xopt[0][1]
-    zt_opt = xopt[0][2]
-    misfit = xopt[1]
-    return beta_opt, zb_opt, zt_opt, misfit
+    if method == 'fmin':
+        xopt = fmin(func, x0=np.array([beta0, dz0, zt0]), args=(Phi_exp, kh, C), full_output=True, disp=False)
+        beta_opt = xopt[0][0]
+        dz_opt = xopt[0][1]
+        zt_opt = xopt[0][2]
+        misfit = xopt[1]
+        
+    elif method == 'ls':
+        if len(lb) == 0:
+            lb = np.array([beta_lb, dz_lb, zt_lb])
+        if len(ub) == 0:
+            ub = np.array([beta_ub, dz_ub, zt_ub])
+    
+        res = least_squares(func, x0=np.array([beta0, dz0, zt0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, C))
+        beta_opt = res.x[0]
+        dz_opt = res.x[1]
+        zt_opt = res.x[2]
+        misfit = res.cost
 
-def find_beta_zt(zb, Phi_exp, kh, beta0, zt0, C=0, wlf=False):
+    if wlf:
+        misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt_opt, dz_opt, kh, C))
+        
+    return beta_opt, dz_opt, zt_opt, misfit
+
+def find_beta_zt(dz, Phi_exp, kh, beta0, zt0, C=0, wlf=False, method='fmin', lb=[], ub=[]):
     '''
     Find fractal parameter beta and depth of top of magnetic layer for a given radial spectrum
 
     Parameters
     ----------
+        dz      : thickness of magnetic layer
         Phi_exp : Spectrum values for kh
         kh      : norm of the wave number in the horizontal plane
         beta0   : starting value
         zt0     : depth of top of magnetic layer
         C       : field constant (Maus et al., 1997)
         wlf     : apply low frequency weighting
+        method  : 'fmin' -> simplex method
+                  'ls' -> least-squares
+        lb      : lower bounds for least-squares (beta, zt)
+        ub      : upper bounds for least-squares (beta, zt)
 
     Returns
     -------
@@ -890,30 +1072,50 @@ def find_beta_zt(zb, Phi_exp, kh, beta0, zt0, C=0, wlf=False):
     else:
         w = 1.0
     # define function to minimize
-    def func(x, zb, Phi_exp, kh, C):
+    def func(x, dz, Phi_exp, kh, C):
         beta = x[0]
         zt = x[1]
-        dz = zb - zt
         return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
 
-    xopt = fmin(func, x0=np.array([beta0, zt0]), args=(zb, Phi_exp, kh, C), full_output=True, disp=False)
-    beta_opt = xopt[0][0]
-    zt_opt = xopt[0][1]
-    misfit = xopt[1]
+    if method == 'fmin':
+        xopt = fmin(func, x0=np.array([beta0, zt0]), args=(dz, Phi_exp, kh, C), full_output=True, disp=False)
+        beta_opt = xopt[0][0]
+        zt_opt = xopt[0][1]
+        misfit = xopt[1]
+        
+    elif method == 'ls':
+        if len(lb) == 0:
+            lb = np.array([beta_lb, zt_lb])
+        if len(ub) == 0:
+            ub = np.array([beta_ub, zt_ub])
+    
+        res = least_squares(func, x0=np.array([beta0, zt0]), jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, kh, C))
+        beta_opt = res.x[0]
+        zt_opt = res.x[1]
+        misfit = res.cost
+
+    if wlf:
+        misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt_opt, dz, kh, C))
+        
     return beta_opt, zt_opt, misfit
 
-def find_beta_C(zb, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False):
+def find_beta_C(dz, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False, method='fmin', lb=[], ub=[]):
     '''
     Find fractal parameter beta and constant C for a given radial spectrum
 
     Parameters
     ----------
+        dz      : thickness of magnetic layer
         Phi_exp : Spectrum values for kh
         kh      : norm of the wave number in the horizontal plane
         beta0   : starting value of beta
         C0      : starting value of C
         zt      : depth of top of magnetic layer
         wlf     : apply low frequency weighting
+        method  : 'fmin' -> simplex method
+                  'ls' -> least-squares
+        lb      : lower bounds for least-squares (beta, C)
+        ub      : upper bounds for least-squares (beta, C)
 
     Returns
     -------
@@ -924,19 +1126,34 @@ def find_beta_C(zb, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False):
     else:
         w = 1.0
     # define function to minimize
-    def func(x, zb, Phi_exp, kh, zt):
+    def func(x, dz, Phi_exp, kh, zt):
         beta = x[0]
         C = x[1]
-        dz = zb - zt
         return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
 
-    xopt = fmin(func, x0=np.array([beta0, C0]), args=(zb, Phi_exp, kh, zt), full_output=True, disp=False)
-    beta_opt = xopt[0][0]
-    C_opt = xopt[0][1]
-    misfit = xopt[1]
+    if method == 'fmin':
+        xopt = fmin(func, x0=np.array([beta0, C0]), args=(dz, Phi_exp, kh, zt), full_output=True, disp=False)
+        beta_opt = xopt[0][0]
+        C_opt = xopt[0][1]
+        misfit = xopt[1]
+        
+    elif method == 'ls':
+        if len(lb) == 0:
+            lb = np.array([beta_lb, C_lb])
+        if len(ub) == 0:
+            ub = np.array([beta_ub, C_ub])
+    
+        res = least_squares(func, x0=np.array([beta0, C0]), jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, kh, zt))
+        beta_opt = res.x[0]
+        C_opt = res.x[1]
+        misfit = res.cost
+
+    if wlf:
+        misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt, dz, kh, C_opt))
+        
     return beta_opt, C_opt, misfit
 
-def find_zt_dz(Phi_exp, kh, zt0, dz0, beta, C, wlf=False):
+def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], ub=[]):
     '''
     Find fractal depth of top and thickness of magnetic layer for a given radial spectrum
 
@@ -948,10 +1165,14 @@ def find_zt_dz(Phi_exp, kh, zt0, dz0, beta, C, wlf=False):
         dz0     : starting value of thickness
         C       : field constant (Maus et al., 1997)
         wlf     : apply low frequency weighting
+        method  : 'fmin' -> simplex method
+                  'ls' -> least-squares
+        lb      : lower bounds for least-squares (dz, zt)
+        ub      : upper bounds for least-squares (dz, zt)
 
     Returns
     -------
-        zt, dz, misfit
+        dz, zt, misfit
     '''
     if wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
@@ -959,89 +1180,85 @@ def find_zt_dz(Phi_exp, kh, zt0, dz0, beta, C, wlf=False):
         w = 1.0
     # define function to minimize
     def func(x, Phi_exp, kh, beta, C):
-        zt = x[0]
-        dz = x[1]
-        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
-
-    xopt = fmin(func, x0=np.array([zt0, dz0]), args=(Phi_exp, kh, beta, C), disp=False, full_output=True)
-    zt_opt = xopt[0][0]
-    dz_opt = xopt[0][1]
-    misfit = xopt[1]
-    return zt_opt, dz_opt, misfit
-
-def find_zb(Phi_exp, kh, beta, zt, zb0, C=0.0, wlf=False):
-    '''
-    Find depth to bottom of magnetic slab for a given radial spectrum
-
-    Parameters
-    ----------
-        Phi_exp : Spectrum values for kh
-        kh      : norm of the wave number in the horizontal plane
-        beta    : fractal parameter
-        zt      : depth of top of magnetic layer
-        zb0     : starting value
-        C       : field constant (Maus et al., 1997)
-        wlf     : apply low frequency weighting
-
-    Returns
-    -------
-        zb, misfit
-    '''
-    if wlf:
-        w = np.linspace(1.5, 0.5, Phi_exp.size)
-    else:
-        w = 1.0
-    # define function to minimize
-    def func(zb, beta, Phi_exp, zt, kh, C):
-        dz = zb - zt
-        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
-
-    x = fmin(func, x0=zb0, args=(beta, Phi_exp, zt, kh, C), disp=False, full_output=True)
-    zb_opt = x[0]
-    misfit = x[1]
-    return zb_opt[0], misfit
-
-def find_zb_zt_C(Phi_exp, kh, beta, zb0, zt0, C0, wlf=False):
-    '''
-    Find fractal model parameters for a given radial spectrum
-
-    Parameters
-    ----------
-        Phi_exp : Spectrum values for kh
-        kh      : norm of the wave number in the horizontal plane
-        beta    : value of beta
-        zb0     : starting value of depth to bottom of magnetic layer
-        zt0     : starting value of depth of top of magnetic layer
-        C0      : starting value of field constant (Maus et al., 1997)
-        wlf     : apply low frequency weighting
-
-    Returns
-    -------
-        zb, zt, C, misfit
-    '''
-    if wlf:
-        w = np.linspace(1.5, 0.5, Phi_exp.size)
-    else:
-        w = 1.0
-    # define function to minimize
-    def func(x, Phi_exp, kh, beta):
-        zb = x[0]
+        dz = x[0]
         zt = x[1]
-        C = x[2]
-        dz = zb - zt
         return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
 
-    xopt = fmin(func, x0=np.array([zb0, zt0, C0]), args=(Phi_exp, kh, beta), full_output=True, disp=False)
-    zb_opt = xopt[0][0]
-    zt_opt = xopt[0][1]
-    C_opt = xopt[0][2]
-    if wlf:
-        misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, zb_opt-zt_opt, kh, C_opt))
-    else:
+    if method == 'fmin':
+        xopt = fmin(func, x0=np.array([dz0, zt0]), args=(Phi_exp, kh, beta, C), disp=False, full_output=True)
+        dz_opt = xopt[0][0]
+        zt_opt = xopt[0][1]
         misfit = xopt[1]
-    return zb_opt, zt_opt, C_opt, misfit
 
-def lsfind_zb_zt_C(Phi_exp, kh, beta, zb0, zt0, C0, wlf=False, lb=[], ub=[]):
+    elif method == 'ls':
+        if len(lb) == 0:
+            lb = np.array([dz_lb, zt_lb])
+        if len(ub) == 0:
+            ub = np.array([dz_ub, zt_ub])
+    
+        res = least_squares(func, x0=np.array([dz0, zt0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta, C))
+        dz_opt = res.x[0]
+        zt_opt = res.x[1]
+        C_opt = res.x[2]
+        misfit = res.cost
+
+    if wlf:
+        misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, dz_opt, kh, C))
+
+    return dz_opt, zt_opt, misfit
+
+# def find_zb(Phi_exp, kh, beta, zt, zb0, C=0.0, wlf=False, method='fmin', lb=[], ub=[]):
+#     '''
+#     Find depth to bottom of magnetic slab for a given radial spectrum
+# 
+#     Parameters
+#     ----------
+#         Phi_exp : Spectrum values for kh
+#         kh      : norm of the wave number in the horizontal plane
+#         beta    : fractal parameter
+#         zt      : depth of top of magnetic layer
+#         zb0     : starting value
+#         C       : field constant (Maus et al., 1997)
+#         wlf     : apply low frequency weighting
+#         method  : 'fmin' -> simplex method
+#                   'ls' -> least-squares
+#         lb      : lower bounds for least-squares (zb)
+#         ub      : upper bounds for least-squares (zb)
+# 
+#     Returns
+#     -------
+#         zb, misfit
+#     '''
+#     if wlf:
+#         w = np.linspace(1.5, 0.5, Phi_exp.size)
+#     else:
+#         w = 1.0
+#     # define function to minimize
+#     def func(zb, beta, Phi_exp, zt, kh, C):
+#         dz = zb - zt
+#         return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+# 
+#     if method == 'fmin':
+#         xopt = fmin(func, x0=zb0, args=(beta, Phi_exp, zt, kh, C), disp=False, full_output=True)
+#         zb_opt = xopt[0]
+#         misfit = xopt[1]
+# 
+#     elif method == 'ls':
+#         if len(lb) == 0:
+#             lb = np.array([zb_lb])
+#         if len(ub) == 0:
+#             ub = np.array([zb_ub])
+#     
+#         res = least_squares(func, x0=zb0, jac='3-point', bounds=(lb,ub), args=(beta, Phi_exp, zt, kh, C))
+#         zb_opt = res.x[0]
+#         misfit = res.cost
+# 
+#     if wlf:
+#         misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt, zb_opt-zt, kh, C))
+# 
+#     return zb_opt[0], misfit
+
+def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[], ub=[]):
     '''
     Find fractal model parameters for a given radial spectrum
 
@@ -1050,14 +1267,18 @@ def lsfind_zb_zt_C(Phi_exp, kh, beta, zb0, zt0, C0, wlf=False, lb=[], ub=[]):
         Phi_exp : Spectrum values for kh
         kh      : norm of the wave number in the horizontal plane
         beta    : value of beta
-        zb0     : starting value of depth to bottom of magnetic layer
+        dz0     : starting value of thickness of magnetic layer
         zt0     : starting value of depth of top of magnetic layer
         C0      : starting value of field constant (Maus et al., 1997)
         wlf     : apply low frequency weighting
+        method  : 'fmin' -> simplex method
+                  'ls' -> least-squares
+        lb      : lower bounds for least-squares (dz, zt, C)
+        ub      : upper bounds for least-squares (dz, zt, C)
 
     Returns
     -------
-        zb, zt, C, misfit
+        dz, zt, C, misfit
     '''
     if wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
@@ -1065,28 +1286,36 @@ def lsfind_zb_zt_C(Phi_exp, kh, beta, zb0, zt0, C0, wlf=False, lb=[], ub=[]):
         w = 1.0
     # define function to minimize
     def func(x, Phi_exp, kh, beta):
-        zb = x[0]
+        dz = x[0]
         zt = x[1]
         C = x[2]
-        dz = zb - zt
         return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
 
-    if len(lb) == 0:
-        lb = np.array([3.0, 0.0, -np.inf])
-    if len(ub) == 0:
-        ub = np.array([80.0, 3.0, np.inf])
+    if method == 'fmin':
+        xopt = fmin(func, x0=np.array([dz0, zt0, C0]), args=(Phi_exp, kh, beta), full_output=True, disp=False)
+        dz_opt = xopt[0][0]
+        zt_opt = xopt[0][1]
+        C_opt = xopt[0][2]
+        misfit = xopt[1]
 
-    res = least_squares(func, x0=np.array([zb0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta))
-    zb_opt = res.x[0]
-    zt_opt = res.x[1]
-    C_opt = res.x[2]
-    if wlf:
-        misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, zb_opt-zt_opt, kh, C_opt))
-    else:
+    elif method == 'ls':
+        if len(lb) == 0:
+            lb = np.array([dz_lb, zt_lb, C_lb])
+        if len(ub) == 0:
+            ub = np.array([dz_ub, zt_ub, C_ub])
+    
+        res = least_squares(func, x0=np.array([dz0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta))
+        dz_opt = res.x[0]
+        zt_opt = res.x[1]
+        C_opt = res.x[2]
         misfit = res.cost
-    return zb_opt, zt_opt, C_opt, misfit
 
-def find_zt_C(Phi_exp, kh, beta, zb, zt0, C0, wlf=False):
+    if wlf:
+        misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, dz_opt, kh, C_opt))
+        
+    return dz_opt, zt_opt, C_opt, misfit
+
+def find_zt_C(Phi_exp, kh, beta, dz, zt0, C0, wlf=False, method='fmin', lb=[], ub=[]):
     '''
     Find fractal model parameters for a given radial spectrum
 
@@ -1095,10 +1324,14 @@ def find_zt_C(Phi_exp, kh, beta, zb, zt0, C0, wlf=False):
         Phi_exp : Spectrum values for kh
         kh      : norm of the wave number in the horizontal plane
         beta    : value of beta
-        zb      : depth to bottom of magnetic layer
+        dz      : thickness of magnetic layer
         zt0     : starting value of depth of top of magnetic layer
         C0      : starting value of field constant (Maus et al., 1997)
         wlf     : apply low frequency weighting
+        method  : 'fmin' -> simplex method
+                  'ls' -> least-squares
+        lb      : lower bounds for least-squares (zt, C)
+        ub      : upper bounds for least-squares (zt, C)
 
     Returns
     -------
@@ -1110,16 +1343,31 @@ def find_zt_C(Phi_exp, kh, beta, zb, zt0, C0, wlf=False):
     else:
         w = 1.0
     # define function to minimize
-    def func(x, Phi_exp, kh, zb, beta):
+    def func(x, Phi_exp, kh, dz, beta):
         zt = x[0]
         C = x[1]
-        dz = zb - zt
         return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
 
-    xopt = fmin(func, x0=np.array([zt0, C0]), args=(Phi_exp, kh, zb, beta), full_output=True, disp=False)
-    zt_opt = xopt[0][0]
-    C_opt = xopt[0][1]
-    misfit = xopt[1]
+    if method == 'fmin':
+        xopt = fmin(func, x0=np.array([zt0, C0]), args=(Phi_exp, kh, dz, beta), full_output=True, disp=False)
+        zt_opt = xopt[0][0]
+        C_opt = xopt[0][1]
+        misfit = xopt[1]
+        
+    elif method == 'ls':
+        if len(lb) == 0:
+            lb = np.array([zt_lb, C_lb])
+        if len(ub) == 0:
+            ub = np.array([zt_ub, C_ub])
+    
+        res = least_squares(func, x0=np.array([zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz, beta))
+        zt_opt = res.x[0]
+        C_opt = res.x[1]
+        misfit = res.cost
+
+    if wlf:
+        misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, dz, kh, C_opt))
+        
     return zt_opt, C_opt, misfit
 
 def hfu(x):
@@ -1262,25 +1510,25 @@ if __name__ == '__main__':
     t2 = time.process_time()
     print('Time : ',str(t2-t1))
     zb = zt + dz
-    beta_opt, fopt = find_beta(zb, Phi_exp, kh, beta0=1.5, C=C)
+    beta_opt, fopt = find_beta(dz, Phi_exp, kh, beta0=1.5, C=C)
     print(beta_opt, fopt)
 
-    beta_opt, zt_opt, fopt = find_beta_zt(zb, Phi_exp, kh, beta0=1.5, zt0=0.5, C=C)
+    beta_opt, zt_opt, fopt = find_beta_zt(dz, Phi_exp, kh, beta0=1.5, zt0=0.5, C=C)
     print(beta_opt, zt_opt, fopt)
 
-    zb_opt, fopt = find_zb(Phi_exp, kh, beta_opt, zt_opt, zb0=15, C=C)
-    print('zb_opt = '+str(zb_opt))
+    dz_opt, fopt = find_dz(15, Phi_exp, kh, beta_opt, zt_opt, C=C)
+    print('dz_opt = '+str(dz_opt))
 
 
     # 5% noise
     Phi_exp += 0.05 * np.random.rand(Phi_exp.shape[0]) * Phi_exp
-    beta_opt, fopt = find_beta(zb, Phi_exp, kh, beta0=1.5, C=C)
+    beta_opt, fopt = find_beta(dz, Phi_exp, kh, beta0=1.5, C=C)
     print(beta_opt, fopt)
-    beta_opt, zt_opt, fopt = find_beta_zt(zb, Phi_exp, kh, beta0=1.5, zt0=0.5, C=C)
+    beta_opt, zt_opt, fopt = find_beta_zt(dz, Phi_exp, kh, beta0=1.5, zt0=0.5, C=C)
     print(beta_opt, zt_opt, fopt)
 
-    zb_opt, fopt = find_zb(Phi_exp, kh, beta_opt, zt_opt, C=5.0, zb0=15)
-    print('zb_opt = '+str(zb_opt))
+    dz_opt, fopt = find_dz(15, Phi_exp, kh, beta_opt, zt_opt, C=5.0)
+    print('dz_opt = '+str(dz_opt))
 
     zb = find_zb_okubo(Phi_exp, kh/(2*np.pi), 0.05)
     print(zb)
