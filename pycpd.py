@@ -26,17 +26,16 @@ import sys
 import numpy as np
 import pandas as pd
 from scipy.signal import tukey, hanning
-from mpl_toolkits.basemap import Basemap, cm  # @UnresolvedImport
 
 import matplotlib
-from PyQt5.Qt import QInputDialog
+from PyQt5.QtGui import QDoubleValidator
 
 # Make sure that we are using QT5
 matplotlib.use('Qt5Agg')
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QMainWindow, QCheckBox,
                              QApplication, QGroupBox, QLabel, QLineEdit, QComboBox, QFileDialog,
                              QGridLayout, QSlider, QSizePolicy, QAction, qApp, QFrame, QMessageBox,
-                             QTabWidget)
+                             QTabWidget, QDialog, QListWidget, QListWidgetItem)
 from PyQt5.QtCore import Qt, pyqtSignal
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -44,6 +43,8 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
+
+from mpl_toolkits.basemap import Basemap, cm  # @UnresolvedImport
 
 import cpd
 
@@ -125,7 +126,7 @@ class MapCanvas(MyMplCanvas):
         self.allbh = None
         self.gxmin = 0.0
         self.gymin = 0.0        
-
+        
     def drawMap(self, grid):
         
         self.axes.cla()
@@ -168,6 +169,11 @@ class MapCanvas(MyMplCanvas):
 
                     
         self.mpl_connect('pick_event', onpick)
+        
+    def set_clim(self, amin, amax):
+        if self.im != None:
+            self.im.set_clim((amin, amax))
+            self.draw()
         
     def updateBhLoc(self, f):
         if self.m != None:
@@ -553,6 +559,21 @@ class PyCPD(QMainWindow):
         self.locmap.setMinimumSize(900, 700)
         toolbar = NavigationToolbar(self.locmap, self)
         
+        mapctrl = QFrame()
+        mcl = QHBoxLayout()
+        mcl.addWidget(QLabel('A min'))
+        self.amin = QLineEdit('-600')
+        self.amin.setValidator(QDoubleValidator())
+        mcl.addWidget(self.amin)
+        mcl.addWidget(QLabel('A max'))
+        self.amax = QLineEdit('600')
+        self.amax.setValidator(QDoubleValidator())
+        mcl.addWidget(self.amax)
+        self.amin.editingFinished.connect(self.achanged)
+        self.amax.editingFinished.connect(self.achanged)
+        
+        mapctrl.setLayout(mcl)
+        
         self.splot = SpectrumCanvas(self, width=5, height=4, dpi=100)
         self.splot.setMinimumSize(600,300)
         self.lachplot = LachenbruchCanvas(self, width=5, height=4, dpi=100)
@@ -616,6 +637,7 @@ class PyCPD(QMainWindow):
         rvbox1.addWidget(self.bh)
         rvbox1.addWidget(toolbar)
         rvbox1.addWidget(self.locmap)
+        rvbox1.addWidget(mapctrl)
 
         rvbox2 = QVBoxLayout()
         #vbox.addStretch(1)
@@ -632,6 +654,18 @@ class PyCPD(QMainWindow):
         self.setGeometry(300, 300, 300, 150)
         self.setWindowTitle('Curie-Point Depth Calculator')
         self.show()
+        
+    def achanged(self):
+        if self.locmap == None:
+            return
+        amin = float(self.amin.text())
+        amax = float(self.amax.text())
+        if amin > amax:
+            QMessageBox.warning(self, 'Warning', 'min value larger than max value, figure not updated', QMessageBox.Ok)
+            self.amin.setText((str(amax-1)))
+            return
+        self.locmap.set_clim(amin, amax)
+        
         
     def bhDown(self):
         if self.forages == None:
