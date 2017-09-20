@@ -27,7 +27,7 @@ INRS-ETE
 import struct
 import numpy as np
 from scipy.special import gamma, kv, lambertw
-from scipy.optimize import fmin, fminbound, fmin_cobyla
+from scipy.optimize import fmin, fminbound, fmin_cobyla, least_squares
 from scipy.signal import tukey
 import pyproj
 import netCDF4
@@ -36,6 +36,7 @@ import time
 import warnings
 
 import geostat
+from mem import lim_malik
 import radon
 import spectrum
 
@@ -341,7 +342,7 @@ class Grid2d:
         return Z[:self.ncol, :self.nrow].T  # transpose to have nx cols & ny rows
 
 
-    def getRadialSpectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scalFac=0.001, mem=False, order=10):
+    def getRadialSpectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scalFac=0.001, mem=0, order=10):
         """
         Compute radial spectrum for point at (xc,yc) for square window of
         width equal to ww
@@ -359,7 +360,10 @@ class Grid2d:
                    3 : remove median value
                    4 : remove mid value, i.e. 0.5 * (max + min)
         scalFac  : scaling factor to get k in rad/km  (0.001 by default, for grid in m)
-        mem      : If True, calculate spectrum with maximum entropy estimator (Srinivasa et al. 1992, IEEE Trans. Signal Processing)
+        mem      : If 0, calculate spectrum with FFT (the default)
+                   If 1, calculate spectrum with maximum entropy estimator of Srinivasa et al. (1992),
+                      IEEE Trans. Signal Processing
+                   If 2, calculate spectrum with maximum entropy estimator of Lim & Malik
         order    : order of maximum entropy estimator
 
         Returns
@@ -448,24 +452,8 @@ class Grid2d:
 
         dx = self.dx * scalFac  # from m to km
         dk = 2.0*np.pi / (nw-1) / dx
-        if mem == True:
-            k = np.arange(dk, dk*nw/2, dk)
-            S = np.zeros((k.size,))
-            E2 = np.zeros((k.size,))
 
-            theta = np.pi*np.arange(0.0,180.0,5.0)/180.0
-            sinogram = radon.radon2d(data*taper_val, theta)
-            SS = np.zeros((theta.size,k.size))
-
-            for n in range(theta.size):
-                AR, P, kk = spectrum.arburg(sinogram[:,n], order)
-                PSD = spectrum.arma2psd(AR, NFFT=1+2*k.size)
-                SS[n,:] = 2.0*np.log( k * PSD[1:k.size+1] )
-
-            S = np.mean(SS, axis=0)
-            E2 = np.std(SS, axis=0)
-
-        else:
+        if mem == 0:
             TF2D = np.abs(np.fft.fft2(data*taper_val))
             TF2D = np.fft.fftshift(TF2D)
 
@@ -484,7 +472,48 @@ class Grid2d:
                 rr = 2.0*np.log(TF2D[ind])
                 S[n] = np.mean(rr)
                 k[n] = np.mean(kk[ind])
-                E2[n] = np.std(rr) / np.sqrt( rr.size/2 )
+                E2[n] = np.std(rr) / np.sqrt( rr.size )
+
+        elif mem == 1:
+            # method of Srinivasa et al. 1992
+            k = np.arange(dk, dk*nw/2, dk)
+            S = np.zeros((k.size,))
+            E2 = np.zeros((k.size,))
+
+            theta = np.pi*np.arange(0.0,180.0,5.0)/180.0
+            sinogram = radon.radon2d(data*taper_val, theta)
+            SS = np.zeros((theta.size,k.size))
+
+            for n in range(theta.size):
+                AR, P, kk = spectrum.arburg(sinogram[:,n], order)
+                PSD = spectrum.arma2psd(AR, NFFT=1+2*k.size)
+                SS[n,:] = 2.0*np.log( k * PSD[1:k.size+1] )
+
+            S = np.mean(SS, axis=0)
+            E2 = np.std(SS, axis=0)
+
+        elif mem == 2:
+            Stmp = np.abs( lim_malik(data*taper_val) )
+
+            kbins = np.arange(dk, dk*nw/2, dk)
+            nbins = kbins.size-1
+            S = np.zeros((nbins,))
+            k = np.zeros((nbins,))
+            E2 = np.zeros((nbins,))
+
+            i0 = int((nw-1)/2)
+            iy,ix= np.meshgrid(np.arange(nw), np.arange(nw))
+            kk = np.sqrt( ((ix-i0)*dk)**2 + ((iy-i0)*dk)**2 )
+
+            for n in range(nbins):
+                ind = np.logical_and( kk>=kbins[n], kk<=kbins[n+1] )
+                rr = 2.0*np.log(Stmp[ind])
+                S[n] = np.mean(rr)
+                k[n] = np.mean(kk[ind])
+                E2[n] = np.std(rr) / np.sqrt( rr.size )
+
+        else:
+            raise ValueError('Method undefined')
 
         return S, k, E2, flagPad
 
@@ -543,8 +572,7 @@ def find_beta(zb, Phi_exp, kh, beta0, zt=1.0, C=0, wlf=False):
         beta, misfit
     '''
     if wlf:
-        w = np.linspace(2.0, 1.0, Phi_exp.size)
-        w /= w.sum()
+        w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
@@ -573,8 +601,7 @@ def find_zt(zb, Phi_exp, kh, beta, zt0, C=0, wlf=False):
        zt, misfit
     '''
     if wlf:
-        w = np.linspace(2.0, 1.0, Phi_exp.size)
-        w /= w.sum()
+        w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
@@ -604,8 +631,7 @@ def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False):
        dz, misfit
     '''
     if wlf:
-        w = np.linspace(2.0, 1.0, Phi_exp.size)
-        w /= w.sum()
+        w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
@@ -634,8 +660,7 @@ def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False):
        C, misfit
     '''
     if wlf:
-        w = np.linspace(2.0, 1.0, Phi_exp.size)
-        w /= w.sum()
+        w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
@@ -665,8 +690,7 @@ def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False):
         beta, zt, dz, C, misfit
     '''
     if wlf:
-        w = np.linspace(2.0, 1.0, Phi_exp.size)
-        w /= w.sum()
+        w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
@@ -705,8 +729,7 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, zb, wlf=False):
         beta, zt, C, misfit
     '''
     if wlf:
-        w = np.linspace(2.0, 1.0, Phi_exp.size)
-        w /= w.sum()
+        w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
@@ -748,8 +771,7 @@ def find_beta_zt_C_bound(Phi_exp, kh, beta, zt, C, zb, wlf=False):
     C0, C1, C2 = C
 
     if wlf:
-        w = np.linspace(2.0, 1.0, Phi_exp.size)
-        w /= w.sum()
+        w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
@@ -792,8 +814,7 @@ def find_beta_zb_C(Phi_exp, kh, beta0, zb0, C0, zt=1.0, wlf=False):
         beta, zb, C, misfit
     '''
     if wlf:
-        w = np.linspace(2.0, 1.0, Phi_exp.size)
-        w /= w.sum()
+        w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
@@ -830,8 +851,7 @@ def find_beta_zb_zt(Phi_exp, kh, beta0, zb0, zt0, C, wlf=False):
         beta, dz, C, misfit
     '''
     if wlf:
-        w = np.linspace(2.0, 1.0, Phi_exp.size)
-        w /= w.sum()
+        w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
@@ -866,8 +886,7 @@ def find_beta_zt(zb, Phi_exp, kh, beta0, zt0, C=0, wlf=False):
         beta, zt, misfit
     '''
     if wlf:
-        w = np.linspace(2.0, 1.0, Phi_exp.size)
-        w /= w.sum()
+        w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
@@ -901,8 +920,7 @@ def find_beta_C(zb, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False):
         beta, C, misfit
     '''
     if wlf:
-        w = np.linspace(2.0, 1.0, Phi_exp.size)
-        w /= w.sum()
+        w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
@@ -936,8 +954,7 @@ def find_zt_dz(Phi_exp, kh, zt0, dz0, beta, C, wlf=False):
         zt, dz, misfit
     '''
     if wlf:
-        w = np.linspace(2.0, 1.0, Phi_exp.size)
-        w /= w.sum()
+        w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
@@ -971,8 +988,7 @@ def find_zb(Phi_exp, kh, beta, zt, zb0, C=0.0, wlf=False):
         zb, misfit
     '''
     if wlf:
-        w = np.linspace(2.0, 1.0, Phi_exp.size)
-        w /= w.sum()
+        w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
@@ -1004,8 +1020,7 @@ def find_zb_zt_C(Phi_exp, kh, beta, zb0, zt0, C0, wlf=False):
         zb, zt, C, misfit
     '''
     if wlf:
-        w = np.linspace(2.0, 1.0, Phi_exp.size)
-        w /= w.sum()
+        w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
@@ -1020,7 +1035,55 @@ def find_zb_zt_C(Phi_exp, kh, beta, zb0, zt0, C0, wlf=False):
     zb_opt = xopt[0][0]
     zt_opt = xopt[0][1]
     C_opt = xopt[0][2]
-    misfit = xopt[1]
+    if wlf:
+        misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, zb_opt-zt_opt, kh, C_opt))
+    else:
+        misfit = xopt[1]
+    return zb_opt, zt_opt, C_opt, misfit
+
+def lsfind_zb_zt_C(Phi_exp, kh, beta, zb0, zt0, C0, wlf=False, lb=[], ub=[]):
+    '''
+    Find fractal model parameters for a given radial spectrum
+
+    Parameters
+    ----------
+        Phi_exp : Spectrum values for kh
+        kh      : norm of the wave number in the horizontal plane
+        beta    : value of beta
+        zb0     : starting value of depth to bottom of magnetic layer
+        zt0     : starting value of depth of top of magnetic layer
+        C0      : starting value of field constant (Maus et al., 1997)
+        wlf     : apply low frequency weighting
+
+    Returns
+    -------
+        zb, zt, C, misfit
+    '''
+    if wlf:
+        w = np.linspace(1.5, 0.5, Phi_exp.size)
+    else:
+        w = 1.0
+    # define function to minimize
+    def func(x, Phi_exp, kh, beta):
+        zb = x[0]
+        zt = x[1]
+        C = x[2]
+        dz = zb - zt
+        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+
+    if len(lb) == 0:
+        lb = np.array([3.0, 0.0, -np.inf])
+    if len(ub) == 0:
+        ub = np.array([80.0, 3.0, np.inf])
+
+    res = least_squares(func, x0=np.array([zb0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta))
+    zb_opt = res.x[0]
+    zt_opt = res.x[1]
+    C_opt = res.x[2]
+    if wlf:
+        misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, zb_opt-zt_opt, kh, C_opt))
+    else:
+        misfit = res.cost
     return zb_opt, zt_opt, C_opt, misfit
 
 def find_zt_C(Phi_exp, kh, beta, zb, zt0, C0, wlf=False):
@@ -1042,8 +1105,8 @@ def find_zt_C(Phi_exp, kh, beta, zb, zt0, C0, wlf=False):
         zt, C, misfit
     '''
     if wlf:
-        w = np.linspace(2.0, 1.0, Phi_exp.size)
-        w /= w.sum()
+        w = np.linspace(1.5, 0.5, Phi_exp.size)
+
     else:
         w = 1.0
     # define function to minimize
