@@ -124,13 +124,18 @@ class MapCanvas(MyMplCanvas):
         self.bh1 = None
         self.m = None
         self.im = None
+        self.cb = None
         self.allbh = None
         self.gxmin = 0.0
-        self.gymin = 0.0        
+        self.gymin = 0.0
+        self.amin = -600.0
+        self.amax = 600.0
         
     def drawMap(self, grid):
         
         self.axes.cla()
+        if self.cb != None:
+            self.cb.remove()
         
         bmpar = cpd.proj4string2dict(grid.proj4string)
         bmpar['width'] = grid.xeast-grid.xwest
@@ -151,8 +156,8 @@ class MapCanvas(MyMplCanvas):
         self.m.drawmeridians(np.arange(0,360,10),labels=[0,0,0,1],fontsize=10)
         self.m.drawparallels(np.arange(-90,90,10),labels=[1,0,0,0],fontsize=10)
         
-        self.im = self.m.imshow(grid.data, cmap=cm.GMT_wysiwyg, clim=(-600.0, 600.0), picker=1)
-        self.fig.colorbar(self.im, ticks=np.arange(-600, 601, 100))
+        self.im = self.m.imshow(grid.data, cmap=cm.GMT_wysiwyg, clim=(self.amin, self.amax), picker=1)
+        self.cb = self.fig.colorbar(self.im, ticks=np.arange(self.amin, self.amax, (self.amax-self.amin)/10.0))
         self.axes.set_title('Magnetic Anomaly')
         
         self.draw()
@@ -172,6 +177,8 @@ class MapCanvas(MyMplCanvas):
         self.mpl_connect('pick_event', onpick)
         
     def set_clim(self, amin, amax):
+        self.amin = amin
+        self.amax = amax
         if self.im != None:
             self.im.set_clim((amin, amax))
             self.draw()
@@ -656,6 +663,9 @@ class PyCPD(QMainWindow):
         self.forages = None
         self.grid = None
     
+        self.mag_path = os.path.expanduser('~/')
+        self.db_path = os.path.expanduser('~/')
+        
         self.initUI()
         
         
@@ -720,11 +730,11 @@ class PyCPD(QMainWindow):
         mapctrl = QFrame()
         mcl = QHBoxLayout()
         mcl.addWidget(QLabel('A min'))
-        self.amin = QLineEdit('-600')
+        self.amin = QLineEdit(str(self.locmap.amin))
         self.amin.setValidator(QDoubleValidator())
         mcl.addWidget(self.amin)
         mcl.addWidget(QLabel('A max'))
-        self.amax = QLineEdit('600')
+        self.amax = QLineEdit(str(self.locmap.amax))
         self.amax.setValidator(QDoubleValidator())
         mcl.addWidget(self.amax)
         self.amin.editingFinished.connect(self.achanged)
@@ -871,7 +881,8 @@ class PyCPD(QMainWindow):
             else:
                 self.bh.offshore.setText('On land')
                 
-            self.bh.zb_sat.setText('Magnetic crustal thickness : {0:5.1f} km'.format(f.zb_sat))
+            if f.zb_sat != None:
+                self.bh.zb_sat.setText('Magnetic crustal thickness : {0:5.1f} km'.format(f.zb_sat))
             
             self.locmap.updateBhLoc(f)
                         
@@ -934,7 +945,7 @@ class PyCPD(QMainWindow):
         if self.grid == None:
             QMessageBox.warning(self, 'Warning', 'Magnetic data should be loaded first', QMessageBox.Ok)
             return
-        fname = QFileDialog.getOpenFileName(self, 'Open file', os.path.expanduser('~/'), 'Heat Flow Data (*.csv)')
+        fname = QFileDialog.getOpenFileName(self, 'Open file', self.db_path, 'Heat Flow Data (*.csv)')
         if fname[0]:
             forages = []
             try:
@@ -962,6 +973,7 @@ class PyCPD(QMainWindow):
                 QMessageBox.warning(self, 'Warning', str(e), QMessageBox.Ok)
                 return
             
+            self.db_path = os.path.dirname(fname[0])
             self.forages = forages
             self.bh.setList(self.forages)
             if len(forages) > 0:
@@ -974,7 +986,7 @@ class PyCPD(QMainWindow):
         if self.forages == None:
             QMessageBox.warning(self, 'Warning', 'Current database empty, nothing to save', QMessageBox.Ok)
             return
-        fname = QFileDialog.getSaveFileName(self, 'Save borehole database', os.path.expanduser('~/'), 'Database file (*.db)')
+        fname = QFileDialog.getSaveFileName(self, 'Save borehole database', self.db_path, 'Database file (*.db)')
         if fname[0]:
             if fname[0][-3:] == '.db':
                 filename = fname[0][:-3] # remove extension, it is added by shelve
@@ -983,10 +995,10 @@ class PyCPD(QMainWindow):
             db = shelve.open(filename, 'n')
             db['forages'] = self.forages
             db.close()
-
+            self.db_path = os.path.dirname(fname[0])
     
     def loadDb(self):
-        fname = QFileDialog.getOpenFileName(self, 'Open file', os.path.expanduser('~/'), 'Mac OS (*.db);;Linux (*.dat)')
+        fname = QFileDialog.getOpenFileName(self, 'Open file', self.db_path, 'Mac OS (*.db);;Linux (*.dat)')
         if fname[0]:
             try:
                 if fname[1] == 'Mac OS (*.db)':
@@ -1000,6 +1012,7 @@ class PyCPD(QMainWindow):
             except IOError:
                 QMessageBox.warning(self, 'Warning', 'Error loading database', QMessageBox.Ok)
         
+            self.db_path = os.path.dirname(fname[0])
         
     def loadMag(self):
         oldgrid = self.grid  # store current grid in case we cannot load new stuff
@@ -1010,7 +1023,7 @@ class PyCPD(QMainWindow):
         else:
             return
         
-        fname = QFileDialog.getOpenFileName(self, 'Open file', os.path.expanduser('~/'), 'netcdf (*.nc *.grd);;USGS (*.SGD)')
+        fname = QFileDialog.getOpenFileName(self, 'Open file', self.mag_path, 'netcdf (*.nc *.grd);;USGS (*.SGD)')
         if fname[0]:
             try:
                 if fname[1] == 'USGS (*.SGD)':
@@ -1020,6 +1033,7 @@ class PyCPD(QMainWindow):
                     self.grid = cpd.Grid2d(proj4string)
                     self.grid.readnc(fname[0])
                     
+                self.mag_path = os.path.dirname(fname[0])
                 self.locmap.drawMap(self.grid)
             except RuntimeError as e:
                 QMessageBox.warning(self, 'Warning', str(e.args[0], 'utf-8'), QMessageBox.Ok)
@@ -1252,7 +1266,7 @@ class PyCPD(QMainWindow):
     def showAsim(self):
         if self.forages != None:
             f = self.forages[self.bh.bhlist.currentIndex()]
-            if f.A_sim.size>0:
+            if len(f.A_sim)>0:
                 fig = plt.figure()
                 fig.set_size_inches(7,5)
                 plt.hist(f.A_sim, bins=30, label='Median: '+str(np.median(f.A_sim)))
@@ -1265,7 +1279,7 @@ class PyCPD(QMainWindow):
     def showksim(self):
         if self.forages != None:
             f = self.forages[self.bh.bhlist.currentIndex()]
-            if f.k_sim.size>0:
+            if len(f.k_sim)>0:
                 fig = plt.figure()
                 fig.set_size_inches(7, 5)
                 plt.hist(f.k_sim, bins=30, label='Median: '+str(np.median(f.k_sim)))
