@@ -28,7 +28,8 @@ import pandas as pd
 from scipy.signal import tukey, hanning
 
 import matplotlib
-from PyQt5.QtGui import QDoubleValidator
+from PyQt5.QtGui import QDoubleValidator, QIntValidator
+from _ast import Attribute
 
 # Make sure that we are using QT5
 matplotlib.use('Qt5Agg')
@@ -297,14 +298,17 @@ class SpectrumParams(QGroupBox):
         self.taperwin.addItems(('tukey', 'hanning'))
         self.taperwin.setCurrentIndex(0)
         self.winsize = QLineEdit('500.0')
+        self.winsize.setValidator(QDoubleValidator())
         self.winsize.setMinimumWidth(75)
         self.log = QCheckBox('Log scale')
         self.log.setChecked(True)
         
         self.estimator = QComboBox()
+#        self.estimator.addItems(('FFT','Maximum Entropy (Srinivasa)', 'Maximum Entropy (Lim-Malik)'))
         self.estimator.addItems(('FFT','Maximum Entropy'))
         self.estimator.setMaximumWidth(120)
         self.order = QLineEdit('10')
+        self.order.setValidator(QIntValidator())
         
         gl = QGridLayout()
         gl.addWidget(QLabel('Size (km)'), 0, 0)
@@ -372,12 +376,16 @@ class MausParams(QGroupBox):
                 
         self.betaed = QLineEdit('{0:5.2f}'.format(beta))
         self.betaed.setMinimumWidth(75)
+        self.betaed.setValidator(QDoubleValidator())
         self.zted = QLineEdit('{0:5.1f}'.format(zt))
         self.zted.setMinimumWidth(75)
+        self.zted.setValidator(QDoubleValidator())
         self.dzed = QLineEdit('{0:5.1f}'.format(dz))
         self.dzed.setMinimumWidth(75)
+        self.dzed.setValidator(QDoubleValidator())
         self.Ced = QLineEdit('{0:5.1f}'.format(C))
         self.Ced.setMinimumWidth(75)
+        self.Ced.setValidator(QDoubleValidator())
         
         self.betac = QCheckBox()
         self.ztc = QCheckBox()
@@ -385,6 +393,44 @@ class MausParams(QGroupBox):
         self.Cc = QCheckBox()
         self.lfc = QCheckBox('Low frequency weighting')
         self.lfc.setChecked(False)
+        
+        self.beta_lb = QLineEdit('1.5')
+        self.beta_lb.setEnabled(False)
+        self.beta_lb.setValidator(QDoubleValidator())
+        self.beta_ub = QLineEdit('5.8')
+        self.beta_ub.setEnabled(False)
+        self.beta_ub.setValidator(QDoubleValidator())
+        self.zt_lb = QLineEdit('0.0')
+        self.zt_lb.setEnabled(False)
+        self.zt_lb.setValidator(QDoubleValidator())
+        self.zt_ub = QLineEdit('5.0')
+        self.zt_ub.setEnabled(False)
+        self.zt_ub.setValidator(QDoubleValidator())
+        self.dz_lb = QLineEdit('3.0')
+        self.dz_lb.setEnabled(False)
+        self.dz_lb.setValidator(QDoubleValidator())
+        self.dz_ub = QLineEdit('80.0')
+        self.dz_ub.setEnabled(False)
+        self.dz_ub.setValidator(QDoubleValidator())
+        self.C_lb = QLineEdit('-10.0')
+        self.C_lb.setEnabled(False)
+        self.C_lb.setValidator(QDoubleValidator())
+        self.C_ub = QLineEdit('50.0')
+        self.C_ub.setEnabled(False)
+        self.C_ub.setValidator(QDoubleValidator())
+        
+        optimfr = QGroupBox('Optimization method')
+        
+        self.optim = QComboBox()
+        self.optim.addItem('Simplex', 'fmin')
+        self.optim.addItem('least-squares', 'ls')
+        self.optim.currentIndexChanged.connect(self.optimChanged)
+        
+        ol = QVBoxLayout()
+        ol.addWidget(self.optim)
+        
+        optimfr.setLayout(ol)
+        
         
         self.fit2step = QPushButton('2-step fit')
         self.fit = QPushButton('Fit to spectrum')
@@ -415,14 +461,27 @@ class MausParams(QGroupBox):
         gl.addWidget(self.Ced,4,2)
         
         gl.addWidget(QLabel('Fixed'),0,3)
-        gl.addWidget(self.betac,1,3)
-        gl.addWidget(self.ztc,2,3)
-        gl.addWidget(self.dzc,3,3)
-        gl.addWidget(self.Cc,4,3)
-
-        gl.addWidget(self.lfc,2,4)
-        gl.addWidget(self.fit2step,3,4)
-        gl.addWidget(self.fit,4,4)
+        gl.addWidget(self.betac,1,3, Qt.AlignCenter)
+        gl.addWidget(self.ztc,2,3, Qt.AlignCenter)
+        gl.addWidget(self.dzc,3,3, Qt.AlignCenter)
+        gl.addWidget(self.Cc,4,3, Qt.AlignCenter)
+        
+        gl.addWidget(QLabel('Lower'),0,4)
+        gl.addWidget(QLabel('Upper'),0,5)
+        
+        gl.addWidget(self.beta_lb,1,4)
+        gl.addWidget(self.beta_ub,1,5)
+        gl.addWidget(self.zt_lb,2,4)
+        gl.addWidget(self.zt_ub,2,5)
+        gl.addWidget(self.dz_lb,3,4)
+        gl.addWidget(self.dz_ub,3,5)
+        gl.addWidget(self.C_lb,4,4)
+        gl.addWidget(self.C_ub,4,5)
+        
+        gl.addWidget(optimfr,0,6,2,1)
+        gl.addWidget(self.lfc,2,6)
+        gl.addWidget(self.fit2step,3,6)
+        gl.addWidget(self.fit,4,6)
         
         self.setLayout(gl)
         
@@ -466,6 +525,19 @@ class MausParams(QGroupBox):
         val = int((val-self.bC[0])/(self.bC[1]-self.bC[0]) * self.C_fac)
         self.Csl.setValue(val)
         
+    def optimChanged(self, index):
+        self.beta_lb.setEnabled(index)
+        self.beta_ub.setEnabled(index)
+        self.zt_lb.setEnabled(index)
+        self.zt_ub.setEnabled(index)
+        self.dz_lb.setEnabled(index)
+        self.dz_ub.setEnabled(index)
+        self.C_lb.setEnabled(index)
+        self.C_ub.setEnabled(index)
+    
+    @property
+    def method(self):
+        return self.optim.currentData()
         
 class LachenbruchParams(QGroupBox):
     def __init__(self):
@@ -474,17 +546,21 @@ class LachenbruchParams(QGroupBox):
         hbox = QHBoxLayout()
         hbox.addWidget(QLabel('Characteristic depth (km)'))
         self.D = QLineEdit('7.74')
+        self.D.setValidator(QDoubleValidator())
         hbox.addWidget(self.D)
         self.override = QCheckBox('Override bh data')
         hbox.addWidget(self.override)
         hbox.addWidget(QLabel('Q0'))
         self.Q0 = QLineEdit('40.0')
+        self.Q0.setValidator(QDoubleValidator())
         hbox.addWidget(self.Q0)
         hbox.addWidget(QLabel('A'))
         self.A = QLineEdit('2.0')
+        self.A.setValidator(QDoubleValidator())
         hbox.addWidget(self.A)
         hbox.addWidget(QLabel('k'))
         self.k = QLineEdit('4.0')
+        self.k.setValidator(QDoubleValidator())
         hbox.addWidget(self.k)
         
         self.setLayout(hbox)
@@ -844,15 +920,12 @@ class PyCPD(QMainWindow):
                     win = hanning
                 detrend = self.sp.detrend.currentIndex()
                 
-                if self.sp.estimator.currentIndex() == 1:
-                    mem = True
-                else:
-                    mem = False
+                mem = self.sp.estimator.currentIndex()
                     
                 order = int(self.sp.order.text())
             
-                f.S_r, f.k_r, f.E2, fl = self.grid.getRadialSpectrum(f.x, f.y, ww, win, detrend,
-                                                                     mem=mem, order=order)  # @UnusedVariable
+                f.S_r, f.k_r, f.E2, _ = self.grid.getRadialSpectrum(f.x, f.y, ww, win, detrend,
+                                                                     mem=mem, order=order)
                 
                 self.updateSpectrum()
         
@@ -889,8 +962,10 @@ class PyCPD(QMainWindow):
                 QMessageBox.warning(self, 'Warning', str(e), QMessageBox.Ok)
                 return
             
-            self.forages = forages  
-            ex.locmap.updateBhLoc(ex.forages[0])
+            self.forages = forages
+            self.bh.setList(self.forages)
+            if len(forages) > 0:
+                ex.locmap.updateBhLoc(ex.forages[0])
             self.statusBar().clearMessage()
             self.statusBar().showMessage('Database created, contains '+str(len(forages))+' boreholes')
         
@@ -1005,60 +1080,117 @@ class PyCPD(QMainWindow):
             Cc = self.mp.Cc.isChecked()
             lfc = self.mp.lfc.isChecked()
             
+            meth = self.mp.method
+            
             # none fixed
             if not betac and not ztc and not dzc and not Cc:
-                x = cpd.find_beta_zt_dz_C(f.S_r, f.k_r, beta, zt, dz, C, lfc)
+                lb = (float(self.mp.beta_lb.text()),
+                      float(self.mp.zt_lb.text()),
+                      float(self.mp.dz_lb.text()),
+                      float(self.mp.C_lb.text()))
+                ub = (float(self.mp.beta_ub.text()),
+                      float(self.mp.zt_ub.text()),
+                      float(self.mp.dz_ub.text()),
+                      float(self.mp.C_ub.text()))
+                x = cpd.find_beta_zt_dz_C(f.S_r, f.k_r, beta, zt, dz, C, lfc, meth, lb, ub)
                 beta = x[0]
                 zt = x[1]
                 dz = x[2]
                 C = x[3]
             # beta alone not fixed
             elif not betac and ztc and dzc and Cc:
-                x = cpd.find_beta(dz+zt, f.S_r, f.k_r, beta, zt, C, lfc)
+                lb = (float(self.mp.beta_lb.text()))
+                ub = (float(self.mp.beta_ub.text()))
+                x = cpd.find_beta(dz, f.S_r, f.k_r, beta, zt, C, lfc, meth, lb, ub)
                 beta = x[0]
             # zt alone not fixed
             elif betac and not ztc and dzc and Cc:
-                x = cpd.find_zt(dz+zt, f.S_r, f.k_r, beta, zt, C, lfc)
+                lb = (float(self.mp.zt_lb.text()))
+                ub = (float(self.mp.zt_ub.text()))
+                x = cpd.find_zt(dz, f.S_r, f.k_r, beta, zt, C, lfc, meth, lb, ub)
                 zt = x[0]
             # dz alone not fixed
             elif betac and ztc and not dzc and Cc:
-                x = cpd.find_dz(dz, f.S_r, f.k_r, beta, zt, C, lfc)
+                lb = (float(self.mp.dz_lb.text()))
+                ub = (float(self.mp.dz_ub.text()))
+                x = cpd.find_dz(dz, f.S_r, f.k_r, beta, zt, C, lfc, meth, lb, ub)
                 dz = x[0]
             # C alone not fixed
             elif betac and ztc and dzc and not Cc:
-                x = cpd.find_C(dz, f.S_r, f.k_r, beta, zt, C, lfc)
+                lb = (float(self.mp.C_lb.text()))
+                ub = (float(self.mp.C_ub.text()))
+                x = cpd.find_C(dz, f.S_r, f.k_r, beta, zt, C, lfc, meth, lb, ub)
                 C = x[0]
             # beta alone fixed
             elif betac and not ztc and not dzc and not Cc:
-                x = cpd.find_zb_zt_C(f.S_r, f.k_r, beta, zt+dz, zt, C, lfc)
-                dz = x[0] - x[1]
+                lb = (float(self.mp.dz_lb.text()),
+                      float(self.mp.zt_lb.text()),
+                      float(self.mp.C_lb.text()))
+                ub = (float(self.mp.dz_ub.text()),
+                      float(self.mp.zt_ub.text()),
+                      float(self.mp.C_ub.text()))
+                x = cpd.find_dz_zt_C(f.S_r, f.k_r, beta, dz, zt, C, lfc, meth, lb, ub)
+                dz = x[0]
                 zt = x[1]
                 C = x[2]
             # dz alone fixed
             elif not betac and not ztc and dzc and not Cc:
-                x = cpd.find_beta_zt_C(f.S_r, f.k_r, beta, zt, C, zt+dz, lfc)
+                lb = (float(self.mp.beta_lb.text()),
+                      float(self.mp.zt_lb.text()),
+                      float(self.mp.C_lb.text()))
+                ub = (float(self.mp.beta_ub.text()),
+                      float(self.mp.zt_ub.text()),
+                      float(self.mp.C_ub.text()))
+                x = cpd.find_beta_zt_C(f.S_r, f.k_r, beta, zt, C, dz, lfc, meth, lb, ub)
                 beta = x[0]
                 zt = x[1]
                 C = x[2]
             # C alone fixed
             elif not betac and not ztc and not dzc and Cc:
-                x = cpd.find_beta_zb_zt(f.S_r, f.k_r, beta, zt+dz, zt, C, lfc)
+                lb = (float(self.mp.beta_lb.text()),
+                      float(self.mp.dz_lb.text()),
+                      float(self.mp.zt_lb.text()))
+                ub = (float(self.mp.beta_ub.text()),
+                      float(self.mp.dz_ub.text()),
+                      float(self.mp.zt_ub.text()))
+                x = cpd.find_beta_dz_zt(f.S_r, f.k_r, beta, dz, zt, C, lfc, meth, lb, ub)
                 beta = x[0]
-                dz = x[1] - x[2]
+                dz = x[1]
                 zt = x[2]
             # zt and dz fixed
             elif not betac and ztc and dzc and not Cc:
-                x = cpd.find_beta_C(zb=dz+zt, Phi_exp=f.S_r, kh=f.k_r, beta0=beta, C0=C, zt=zt, wlf=lfc)
+                lb = (float(self.mp.beta_lb.text()),
+                      float(self.mp.C_lb.text()))
+                ub = (float(self.mp.beta_ub.text()),
+                      float(self.mp.C_ub.text()))
+                x = cpd.find_beta_C(dz, f.S_r, f.k_r, beta, C, zt, lfc, meth, lb, ub)
                 beta = x[0]
                 C = x[1]
+            # C and dz fixed
+            elif not betac and not ztc and dzc and Cc:
+                lb = (float(self.mp.beta_lb.text()),
+                      float(self.mp.zt_lb.text()))
+                ub = (float(self.mp.beta_ub.text()),
+                      float(self.mp.zt_ub.text()))
+                x = cpd.find_beta_zt(dz, f.S_r, f.k_r, beta, zt, C, lfc, meth, lb, ub)
+                beta = x[0]
+                zt = x[1]
             # beta and C fixed
             elif betac and not ztc and not dzc and Cc:
-                x = cpd.find_zt_dz(Phi_exp=f.S_r, kh=f.k_r, zt0=zt, dz0=dz, beta=beta, C=C, wlf=lfc)
-                zt = x[0]
-                dz = x[1]
+                lb = (float(self.mp.dz_lb.text()),
+                      float(self.mp.zt_lb.text()))
+                ub = (float(self.mp.dz_ub.text()),
+                      float(self.mp.zt_ub.text()))
+                x = cpd.find_dz_zt(f.S_r, f.k_r, dz, zt, beta, C, lfc, meth, lb, ub)
+                dz = x[0]
+                zt = x[1]
             # beta and dz fixed
             elif betac and not ztc and dzc and not Cc:
-                x = cpd.find_zt_C(Phi_exp=f.S_r, kh=f.k_r, beta=beta, zb=dz+zt, zt0=zt, C0=C, wlf=lfc)
+                lb = (float(self.mp.zt_lb.text()),
+                      float(self.mp.C_lb.text()))
+                ub = (float(self.mp.zt_ub.text()),
+                      float(self.mp.C_ub.text()))
+                x = cpd.find_zt_C(f.S_r, f.k_r, beta, dz, zt, C, lfc, meth, lb, ub)
                 zt = x[0]
                 C = x[1]
             else:
@@ -1088,13 +1220,24 @@ class PyCPD(QMainWindow):
             dz = float(self.mp.dzed.text())
             C = float(self.mp.Ced.text())
             lfc = self.mp.lfc.isChecked()
+            
+            meth = self.mp.method
 
-            x = cpd.find_beta_C(dz+zt, f.S_r, f.k_r, beta, C, zt, lfc)
+            lb = (float(self.mp.beta_lb.text()),
+                  float(self.mp.C_lb.text()))
+            ub = (float(self.mp.beta_ub.text()),
+                  float(self.mp.C_ub.text()))
+            x = cpd.find_beta_C(dz, f.S_r, f.k_r, beta, C, zt, lfc, meth, lb, ub)
             beta = x[0]
             C = x[1]
-            x = cpd.find_zt_dz(f.S_r, f.k_r, zt, dz, beta, C, lfc)
-            zt = x[0]
-            dz = x[1]
+
+            lb = (float(self.mp.dz_lb.text()),
+                  float(self.mp.zt_lb.text()))
+            ub = (float(self.mp.dz_ub.text()),
+                  float(self.mp.zt_ub.text()))
+            x = cpd.find_dz_zt(f.S_r, f.k_r, dz, zt, beta, C, lfc, meth, lb, ub)
+            dz = x[0]
+            zt = x[1]
             
             self.mp.betaed.setText('{0:5.2f}'.format(beta))
             self.mp.betaeChanged()
@@ -1183,18 +1326,18 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = PyCPD()
     
-    if os.path.isfile('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages.db'):
-        
-        db = shelve.open('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages','r')
-        ex.forages = db['forages']
-        db.close()
-        ex.bh.setList(ex.forages)
-         
-        ex.grid = cpd.Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
-        ex.grid.readnc('/Users/giroux/JacquesCloud/Projets/CDP/NAmag/Qc_lcc_k_cut.nc')
-        ex.locmap.drawMap(ex.grid)
-        ex.locmap.updateBhLoc(ex.forages[0])
-        ex.computeSpectrum()
-        ex.plotLachenbruch()
+#     if os.path.isfile('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages.db'):
+#         
+#         db = shelve.open('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages','r')
+#         ex.forages = db['forages']
+#         db.close()
+#         ex.bh.setList(ex.forages)
+#          
+#         ex.grid = cpd.Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
+#         ex.grid.readnc('/Users/giroux/JacquesCloud/Projets/CDP/NAmag/Qc_lcc_k_cut.nc')
+#         ex.locmap.drawMap(ex.grid)
+#         ex.locmap.updateBhLoc(ex.forages[0])
+#         ex.computeSpectrum()
+#         ex.plotLachenbruch()
     
     sys.exit(app.exec_())
