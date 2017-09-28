@@ -410,7 +410,8 @@ class Grid2d:
         return data, nw, flagPad
         
 
-    def getRadialSpectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scalFac=0.001, mem=0, memest=0, order=10):
+    def getRadialSpectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scalFac=0.001,
+                           mem=0, memest=0, order=10):
         """
         Compute radial spectrum for point at (xc,yc) for square window of
         width equal to ww
@@ -546,6 +547,66 @@ class Grid2d:
             raise ValueError('Method undefined')
 
         return S, k, E2, flagPad
+
+
+
+    def getAzimuthalSpectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scalFac=0.001, dtheta=5.0):
+        """
+        Compute radial spectrum for point at (xc,yc) for square window of
+        width equal to ww
+
+        Parameters
+        ----------
+        xc       : X coordinate of point
+        yc       : Y coordinate of point
+        ww       : window width
+        taper    : taper window
+        detrend  : control detrending of data
+                   0 : data unchanged (default)
+                   1 : remove best-fitting linear trend
+                   2 : remove mean value
+                   3 : remove median value
+                   4 : remove mid value, i.e. 0.5 * (max + min)
+        scalFac  : scaling factor to get k in rad/km  (0.001 by default, for grid in m)
+
+        Returns
+        -------
+        S       : Radial spectrum
+        k       : wavenumber [rad/km]
+        theta   : 
+        flagPad : True if zero padding was applied
+        """
+
+        # check if in grid
+        if xc<self.xwest or xc>self.xeast or yc<self.ysouth or yc>self.ynorth:
+            raise ValueError('Point outside grid')
+
+        if self.dx != self.dy:
+            raise RuntimeError('Grid cell size should be equal in x and y')
+
+        data, nw, flagPad = self._getSubgrid(xc, yc, ww, detrend)
+        
+        dx = self.dx * scalFac  # from m to km
+        dk = 2.0*np.pi / (nw-1) / dx
+
+        # method of Srinivasa et al. 1992
+        k = np.arange(dk, dk*nw/2, dk)
+
+        theta = np.arange(0.0,180.0,dtheta)
+        sinogram = radon.radon2d(data, np.pi*theta/180.0)
+        SS = np.zeros((theta.size,k.size))
+
+        taper_val = np.ones(data.shape)
+        if taper is tukey:
+            taper_val = taper(sinogram.shape[0], alpha=0.05)
+        else:
+            taper_val = taper(sinogram.shape[0])
+        
+        for n in range(theta.size):
+            PSD = np.abs(np.fft.fft(taper_val * sinogram[:,n], n=1+2*k.size))
+            SS[n,:] = 2.0*np.log( PSD[1:k.size+1] )
+
+        return SS, k, theta, flagPad
 
 
 
@@ -1597,7 +1658,8 @@ if __name__ == '__main__':
     print(T-Tz, T-Tz1)
 
     testFFTMA = False
-    testSpec = True
+    testSpec = False
+    testAz = True
 
     if testFFTMA:
         grid = Grid2d('')
@@ -1628,14 +1690,25 @@ if __name__ == '__main__':
 
         Phi_exp = bouligand4(beta1, zt, dz, k, C1)
 
-        S3, k3, E23, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 250000.0, tukey, detrend=1, mem=1)
+        S3, k3, E23, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 250000.0, tukey, order=5, mem=1)
 
         plt.figure()
-        plt.semilogx(k, S, k2, S2, k, Phi_exp)
-        plt.legend(('1','2','3'))
+        plt.semilogx(k, S, k2, S2, k3, S3, k, Phi_exp)
+        plt.legend(('1','2','3', '4'))
         plt.show()
 
         print('Done')
+
+    if testAz:
+        g = Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
+        g.readnc('/Users/giroux/JacquesCloud/Projets/CDP/NAmag/Qc_lcc_k.nc')
+
+        S, k, theta, flag = g.getAzimuthalSpectrum(1606000.0, -1963000.0, 500000.0, tukey, 1)
+        
+        fig, ax = plt.subplots()
+        ax.set_xscale('log')
+        plt.pcolormesh(k, theta, S, axes=ax)
+        plt.show()
 
 #    g = Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
 #    g.readnc('NAmag/Qc_lcc_k.nc')

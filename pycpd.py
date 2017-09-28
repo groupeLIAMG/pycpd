@@ -68,12 +68,15 @@ class MyMplCanvas(FigureCanvas):
 class SpectrumCanvas(MyMplCanvas):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.l1 = None
-        self.l2 = None
+        self.l1 = None     # line of measured spectrum
+        self.l2 = None     # line of modelled spectrum
         self.t = None
+        self.qm = None     # Quad mesh returned by pcolormesh
         
     def plot(self, f, mauspar, logscale, lfw):
-        #self.axes.cla()
+        if self.qm != None:
+            self.axes.cla()
+            self.qm = None
         (beta, zt, dz, C) = mauspar
         Sm = cpd.bouligand4(beta, zt, dz, f.k_r, C)
         if lfw:
@@ -112,6 +115,20 @@ class SpectrumCanvas(MyMplCanvas):
                  
         self.draw()
     
+    def plot2D(self, f, logscale):
+        if self.l1 != None:
+            self.l1 = None
+            self.l2 = None
+            self.axes.cla()
+            
+        if logscale:
+            self.axes.set_xscale('log')
+        else:
+            self.axes.set_xscale('linear')
+        self.qm = self.axes.pcolormesh(f.k_r, f.theta, f.S_r)
+        self.axes.set_xlabel('Wavenumber (rad/km)')
+        self.axes.set_ylabel('Angle (°)')
+        self.draw()
 
 class MapCanvas(MyMplCanvas):
     
@@ -298,6 +315,8 @@ class SpectrumParams(QGroupBox):
     def __init__(self):
         super().__init__('Spectrum')
         
+        self.type = QComboBox()
+        self.type.addItems(('Radial', 'Azimuthal'))
         self.detrend = QComboBox()
         self.detrend.addItems(('None', 'Linear', 'Mean', 'Median', 'Mid'))
         self.detrend.setCurrentIndex(1)
@@ -306,30 +325,36 @@ class SpectrumParams(QGroupBox):
         self.taperwin.setCurrentIndex(0)
         self.winsize = QLineEdit('500.0')
         self.winsize.setValidator(QDoubleValidator())
-        self.winsize.setMinimumWidth(75)
+#        self.winsize.setMinimumWidth(75)
         self.log = QCheckBox('Log scale')
         self.log.setChecked(True)
         
         self.estimator = QComboBox()
         self.estimator.addItems(('FFT','Maximum Entropy (Srinivasa)', 'Maximum Entropy (Lim-Malik)'))
 #        self.estimator.addItems(('FFT','Maximum Entropy'))
-        self.estimator.setMaximumWidth(120)
+        self.estimator.setMaximumWidth(200)
+        self.memest =  QComboBox()
+        self.memest.addItems(('FFT', 'ARMA'))
         self.order = QLineEdit('3')
         self.order.setValidator(QIntValidator())
+        self.orderl = QLabel('MEM order')
+        self.orderl.setAlignment(Qt.AlignRight)
         
         gl = QGridLayout()
-        gl.addWidget(QLabel('Size (km)'), 0, 0)
-        gl.addWidget(self.winsize, 0, 1)
-        gl.addWidget(QLabel('Detrending'), 0, 2)
-        gl.addWidget(self.detrend, 0, 3)
-        gl.addWidget(QLabel('Taper'), 0, 4)
-        gl.addWidget(self.taperwin, 0, 5)
-        gl.addWidget(self.log, 0, 6)
+        gl.addWidget(self.type, 0, 0, 1, 2)
+        gl.addWidget(QLabel('Size (km)'), 1, 0)
+        gl.addWidget(self.winsize, 1, 1)
+        gl.addWidget(QLabel('Detrending'), 1, 2)
+        gl.addWidget(self.detrend, 1, 3)
+        gl.addWidget(QLabel('Taper'), 1, 4)
+        gl.addWidget(self.taperwin, 1, 5)
+        gl.addWidget(self.log, 1, 6)
         
-        gl.addWidget(QLabel('Estimator'), 1, 0)
-        gl.addWidget(self.estimator, 1, 1)
-        gl.addWidget(QLabel('MEM order'), 1, 2)
-        gl.addWidget(self.order)
+        gl.addWidget(QLabel('Estimator'), 2, 0)
+        gl.addWidget(self.estimator, 2, 1, 1, 3)
+        gl.addWidget(self.memest, 2, 4)
+        gl.addWidget(self.orderl, 2, 5)
+        gl.addWidget(self.order, 2, 6)
         
         self.setLayout(gl)
         
@@ -724,7 +749,7 @@ class PyCPD(QMainWindow):
         
         self.bh = BoreholeData()
         self.locmap = MapCanvas(self, width=5, height=4, dpi=100)
-        self.locmap.setMinimumSize(900, 700)
+        self.locmap.setMinimumSize(700, 600)
         toolbar = NavigationToolbar(self.locmap, self)
         
         mapctrl = QFrame()
@@ -743,9 +768,9 @@ class PyCPD(QMainWindow):
         mapctrl.setLayout(mcl)
         
         self.splot = SpectrumCanvas(self, width=5, height=4, dpi=100)
-        self.splot.setMinimumSize(600,300)
+        self.splot.setMinimumSize(500,300)
         self.lachplot = LachenbruchCanvas(self, width=5, height=4, dpi=100)
-        self.lachplot.setMinimumSize(600,300)
+        self.lachplot.setMinimumSize(500,300)
         
         self.plots = QTabWidget()
         self.plots.addTab(self.splot, 'Spectrum')
@@ -782,11 +807,13 @@ class PyCPD(QMainWindow):
         self.mp.fit2step.clicked.connect(self.fitSpec2step)
         self.mp.fit.clicked.connect(self.fitSpectrum)
         
+        self.sp.type.currentIndexChanged.connect(self.computeSpectrum)
         self.sp.detrend.currentIndexChanged.connect(self.computeSpectrum)
         self.sp.log.stateChanged.connect(self.updateSpectrum)
         self.sp.taperwin.currentIndexChanged.connect(self.computeSpectrum)
         self.sp.winsize.editingFinished.connect(self.computeSpectrum)
         self.sp.estimator.currentIndexChanged.connect(self.computeSpectrum)
+        self.sp.memest.currentIndexChanged.connect(self.computeSpectrum)
         self.sp.order.editingFinished.connect(self.computeSpectrum)
         
         self.lach.D.editingFinished.connect(self.plotLachenbruch)
@@ -819,7 +846,7 @@ class PyCPD(QMainWindow):
         
         mw.setLayout(hbox)    
         
-        self.setGeometry(300, 300, 300, 150)
+        self.setGeometry(100, 100, 300, 150)
         self.setWindowTitle('Curie-Point Depth Calculator')
         self.show()
         
@@ -882,7 +909,7 @@ class PyCPD(QMainWindow):
                 self.bh.offshore.setText('On land')
                 
             if f.zb_sat != None:
-                self.bh.zb_sat.setText('Magnetic crustal thickness : {0:5.1f} km'.format(f.zb_sat))
+                self.bh.zb_sat.setText('Mag. crustal thick. : {0:5.1f} km'.format(f.zb_sat))
             
             self.locmap.updateBhLoc(f)
                         
@@ -897,14 +924,27 @@ class PyCPD(QMainWindow):
             f = self.forages[self.bh.bhlist.currentIndex()]
             
         if f != None:
-            beta = float(self.mp.betaed.text())
-            zt = float(self.mp.zted.text())
-            dz = float(self.mp.dzed.text())
-            C = float(self.mp.Ced.text())
-            self.splot.plot(f, (beta, zt, dz, C), self.sp.log.isChecked(), self.mp.lfc.isChecked())
+            if self.sp.type.currentIndex() == 0:
+                beta = float(self.mp.betaed.text())
+                zt = float(self.mp.zted.text())
+                dz = float(self.mp.dzed.text())
+                C = float(self.mp.Ced.text())
+                self.splot.plot(f, (beta, zt, dz, C), self.sp.log.isChecked(), self.mp.lfc.isChecked())
+            else:
+                self.splot.plot2D(f, self.sp.log.isChecked())
             
     def computeSpectrum(self, x=None, y=None):
         if self.grid != None:
+            if self.sp.estimator.currentIndex() == 1:
+                self.sp.memest.setVisible(True)
+                if self.sp.memest.currentIndex() == 1:
+                    self.sp.order.setVisible(True)
+                    self.sp.orderl.setVisible(True)
+            else:
+                self.sp.memest.setVisible(False)
+                self.sp.order.setVisible(False)
+                self.sp.orderl.setVisible(False)
+                
             f = None
             if x != None and y != None:
                 self.forage = cpd.Forage()
@@ -930,13 +970,18 @@ class PyCPD(QMainWindow):
                 elif self.sp.taperwin.currentIndex() == 1:
                     win = hanning
                 detrend = self.sp.detrend.currentIndex()
-                
                 mem = self.sp.estimator.currentIndex()
-                    
+                memest = self.sp.memest.currentIndex()
                 order = int(self.sp.order.text())
             
-                f.S_r, f.k_r, f.E2, _ = self.grid.getRadialSpectrum(f.x, f.y, ww, win, detrend,
-                                                                     mem=mem, order=order)
+                if self.sp.type.currentIndex() == 0:
+                    f.S_r, f.k_r, f.E2, _ = self.grid.getRadialSpectrum(f.x, f.y, ww, win, detrend,
+                                                                         mem=mem, memest=memest,
+                                                                         order=order)
+                else:
+                    f.S_r, f.k_r, f.theta, _ = self.grid.getAzimuthalSpectrum(f.x, f.y, ww, win,
+                                                                              detrend)
+                    
                 
                 self.updateSpectrum()
         
@@ -1340,18 +1385,18 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = PyCPD()
     
-#     if os.path.isfile('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages.db'):
-#         
-#         db = shelve.open('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages','r')
-#         ex.forages = db['forages']
-#         db.close()
-#         ex.bh.setList(ex.forages)
-#          
-#         ex.grid = cpd.Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
-#         ex.grid.readnc('/Users/giroux/JacquesCloud/Projets/CDP/NAmag/Qc_lcc_k_cut.nc')
-#         ex.locmap.drawMap(ex.grid)
-#         ex.locmap.updateBhLoc(ex.forages[0])
-#         ex.computeSpectrum()
-#         ex.plotLachenbruch()
+    if os.path.isfile('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages.db'):
+         
+        db = shelve.open('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages','r')
+        ex.forages = db['forages']
+        db.close()
+        ex.bh.setList(ex.forages)
+          
+        ex.grid = cpd.Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
+        ex.grid.readnc('/Users/giroux/JacquesCloud/Projets/CDP/NAmag/Qc_lcc_k_cut.nc')
+        ex.locmap.drawMap(ex.grid)
+        ex.locmap.updateBhLoc(ex.forages[0])
+        ex.computeSpectrum()
+        ex.plotLachenbruch()
     
     sys.exit(app.exec_())
