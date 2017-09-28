@@ -351,8 +351,46 @@ class Grid2d:
         return Z[:self.ncol, :self.nrow].T  # transpose to have nx cols & ny rows
 
 
-    def _getSubgrid(self, xc, yc, ww, detrend):
-        
+    def getRadialSpectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scalFac=0.001, mem=0, order=10):
+        """
+        Compute radial spectrum for point at (xc,yc) for square window of
+        width equal to ww
+
+        Parameters
+        ----------
+        xc       : X coordinate of point
+        yc       : Y coordinate of point
+        ww       : window width
+        taper    : taper window
+        detrend  : control detrending of data
+                   0 : data unchanged (default)
+                   1 : remove best-fitting linear trend
+                   2 : remove mean value
+                   3 : remove median value
+                   4 : remove mid value, i.e. 0.5 * (max + min)
+        scalFac  : scaling factor to get k in rad/km  (0.001 by default, for grid in m)
+        mem      : If 0, calculate spectrum with FFT (the default)
+                   If 1, calculate spectrum with maximum entropy estimator of Srinivasa et al. (1992),
+                      IEEE Trans. Signal Processing
+                   If 2, calculate spectrum with maximum entropy estimator of Lim & Malik
+        order    : order of maximum entropy estimator
+
+        Returns
+        -------
+        S       : Radial spectrum
+        k       : wavenumber [rad/km]
+        E2      : variance of S
+        flagPad : True if zero padding was applied
+        """
+
+        # check if in grid
+        if xc<self.xwest or xc>self.xeast or yc<self.ysouth or yc>self.ynorth:
+            raise ValueError('Point outside grid')
+
+        if self.dx != self.dy:
+            raise RuntimeError('Grid cell size should be equal in x and y')
+
+        # get subgrid
         nw = 1+int(ww/self.dx)
         nw2 = int(nw/2)
         ix = int((xc-self.xwest)/self.dx)
@@ -381,7 +419,6 @@ class Grid2d:
             flagPad = True
 
         data = self.data[jmin:jmax, imin:imax].copy()
-
         ny,nx = data.shape
         if ny<nw:
             data = np.vstack((data, np.zeros((nw-ny,nx))))  # pad with zeros
@@ -407,53 +444,6 @@ class Grid2d:
             mid = 0.5 * (data.max() - data.min())
             data = data - mid
 
-        return data, nw, flagPad
-        
-
-    def getRadialSpectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scalFac=0.001, mem=0, memest=0, order=10):
-        """
-        Compute radial spectrum for point at (xc,yc) for square window of
-        width equal to ww
-
-        Parameters
-        ----------
-        xc       : X coordinate of point
-        yc       : Y coordinate of point
-        ww       : window width
-        taper    : taper window
-        detrend  : control detrending of data
-                   0 : data unchanged (default)
-                   1 : remove best-fitting linear trend
-                   2 : remove mean value
-                   3 : remove median value
-                   4 : remove mid value, i.e. 0.5 * (max + min)
-        scalFac  : scaling factor to get k in rad/km  (0.001 by default, for grid in m)
-        mem      : If 0, calculate spectrum with FFT (the default)
-                   If 1, calculate spectrum with maximum entropy estimator of Srinivasa et al. (1992),
-                      IEEE Trans. Signal Processing
-                   If 2, calculate spectrum with maximum entropy estimator of Lim & Malik
-        memest   : estimator for method of Srinivasa et al. (1992)
-                     If 0, use FFT (the default)
-                     if 1, use ARMA model
-        order    : order of ARMA estimator
-
-        Returns
-        -------
-        S       : Radial spectrum
-        k       : wavenumber [rad/km]
-        E2      : variance of S
-        flagPad : True if zero padding was applied
-        """
-
-        # check if in grid
-        if xc<self.xwest or xc>self.xeast or yc<self.ysouth or yc>self.ynorth:
-            raise ValueError('Point outside grid')
-
-        if self.dx != self.dy:
-            raise RuntimeError('Grid cell size should be equal in x and y')
-
-        data, nw, flagPad = self._getSubgrid(xc, yc, ww, detrend)
-        
         taper_val = np.ones(data.shape)
 
         if taper is tukey:
@@ -500,24 +490,13 @@ class Grid2d:
             E2 = np.zeros((k.size,))
 
             theta = np.pi*np.arange(0.0,180.0,5.0)/180.0
-            sinogram = radon.radon2d(data, theta)
+            sinogram = radon.radon2d(data*taper_val, theta)
             SS = np.zeros((theta.size,k.size))
-            
-            # apply taper on individual directions
-            if taper is tukey:
-                taper_val = taper(sinogram.shape[0], alpha=0.05)
-            else:
-                taper_val = taper(sinogram.shape[0])
 
             for n in range(theta.size):
-                if memest == 0:
-                    PSD = np.abs(np.fft.fft(taper_val * sinogram[:,n], n=1+2*k.size))
-                else:
-                    a, b, rho = spectrum.arma_estimate(sinogram[:,n], order, order, 2*order)
-                    PSD = spectrum.arma2psd(A=a, B=b, NFFT=1+2*k.size)
-#                 AR, P, kk = spectrum.arburg(taper_val * sinogram[:,n], order)
-#                 PSD = spectrum.arma2psd(AR, NFFT=1+2*k.size)
-                SS[n,:] = 2.0*np.log( PSD[1:k.size+1] )
+                AR, P, kk = spectrum.arburg(sinogram[:,n], order)
+                PSD = spectrum.arma2psd(AR, NFFT=1+2*k.size)
+                SS[n,:] = 2.0*np.log( k * PSD[1:k.size+1] )
 
             S = np.mean(SS, axis=0)
             E2 = np.std(SS, axis=0)
