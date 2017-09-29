@@ -550,7 +550,8 @@ class Grid2d:
 
 
 
-    def getAzimuthalSpectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scalFac=0.001, dtheta=5.0):
+    def getAzimuthalSpectrum(self, xc, yc, ww, taper=np.hanning, detrend=0,
+                             scalFac=0.001, dtheta=5.0, memest=0, order=10):
         """
         Compute radial spectrum for point at (xc,yc) for square window of
         width equal to ww
@@ -568,12 +569,18 @@ class Grid2d:
                    3 : remove median value
                    4 : remove mid value, i.e. 0.5 * (max + min)
         scalFac  : scaling factor to get k in rad/km  (0.001 by default, for grid in m)
+        dtheta   : angle increment in degrees
+        memest   : estimator for method of Srinivasa et al. (1992)
+                     If 0, use FFT (the default)
+                     if 1, use ARMA model
+        order    : order of ARMA estimator
+       
 
         Returns
         -------
-        S       : Radial spectrum
+        S       : Azimuthal spectrum
         k       : wavenumber [rad/km]
-        theta   : 
+        theta   : angles [°]
         flagPad : True if zero padding was applied
         """
 
@@ -603,7 +610,11 @@ class Grid2d:
             taper_val = taper(sinogram.shape[0])
         
         for n in range(theta.size):
-            PSD = np.abs(np.fft.fft(taper_val * sinogram[:,n], n=1+2*k.size))
+            if memest == 0:
+                PSD = np.abs(np.fft.fft(taper_val * sinogram[:,n], n=1+2*k.size))
+            else:
+                a, b, rho = spectrum.arma_estimate(sinogram[:,n], order, order, 2*order)
+                PSD = spectrum.arma2psd(A=a, B=b, NFFT=1+2*k.size)
             SS[n,:] = 2.0*np.log( PSD[1:k.size+1] )
 
         return SS, k, theta, flagPad
