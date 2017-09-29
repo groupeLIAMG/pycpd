@@ -457,13 +457,17 @@ class Grid2d:
         
         taper_val = np.ones(data.shape)
 
-        if taper is tukey:
+        if taper == None:
+            ht = 1.0
+        elif taper is tukey:
             ht = taper(taper_val.shape[0], alpha=0.05)  # Bouligand uses 5% tapering
         else:
             ht = taper(taper_val.shape[0])
         for n in range(taper_val.shape[1]):
             taper_val[:,n] *= ht
-        if taper is tukey:
+        if taper == None:
+            ht = 1.0
+        elif taper is tukey:
             ht = taper(taper_val.shape[1], alpha=0.05)
         else:
             ht = taper(taper_val.shape[1])
@@ -505,7 +509,9 @@ class Grid2d:
             SS = np.zeros((theta.size,k.size))
             
             # apply taper on individual directions
-            if taper is tukey:
+            if taper == None:
+                taper_val = 1.0
+            elif taper is tukey:
                 taper_val = taper(sinogram.shape[0], alpha=0.05)
             else:
                 taper_val = taper(sinogram.shape[0])
@@ -514,7 +520,7 @@ class Grid2d:
                 if memest == 0:
                     PSD = np.abs(np.fft.fft(taper_val * sinogram[:,n], n=1+2*k.size))
                 else:
-                    a, b, rho = spectrum.arma_estimate(sinogram[:,n], order, order, 2*order)
+                    a, b, rho = spectrum.arma_estimate(taper_val * sinogram[:,n], order, order, 2*order)
                     PSD = spectrum.arma2psd(A=a, B=b, NFFT=1+2*k.size)
 #                 AR, P, kk = spectrum.arburg(taper_val * sinogram[:,n], order)
 #                 PSD = spectrum.arma2psd(AR, NFFT=1+2*k.size)
@@ -613,7 +619,7 @@ class Grid2d:
             if memest == 0:
                 PSD = np.abs(np.fft.fft(taper_val * sinogram[:,n], n=1+2*k.size))
             else:
-                a, b, rho = spectrum.arma_estimate(sinogram[:,n], order, order, 2*order)
+                a, b, rho = spectrum.arma_estimate(taper_val * sinogram[:,n], order, order, 2*order)
                 PSD = spectrum.arma2psd(A=a, B=b, NFFT=1+2*k.size)
             SS[n,:] = 2.0*np.log( PSD[1:k.size+1] )
 
