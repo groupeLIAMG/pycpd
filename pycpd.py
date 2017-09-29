@@ -79,12 +79,11 @@ class SpectrumCanvas(MyMplCanvas):
             self.qm = None
         (beta, zt, dz, C) = mauspar
         Sm = cpd.bouligand4(beta, zt, dz, f.k_r, C)
+        el1 = np.linalg.norm(f.S_r-Sm)
         if lfw:
             w = np.linspace(2.0, 1.0, f.k_r.size)
             w /= w.sum()
-        else:
-            w = 1.0
-        el2 = np.linalg.norm(w*(f.S_r-Sm))
+            el2 = np.linalg.norm(w*(f.S_r-Sm))
         if self.l1 == None:
             if logscale:
                 self.l1, self.l2 = self.axes.semilogx(f.k_r, f.S_r, f.k_r, Sm)
@@ -94,7 +93,10 @@ class SpectrumCanvas(MyMplCanvas):
                 self.l1, self.l2 = self.axes.plot(f.k_r, f.S_r, f.k_r, Sm)
                 self.l3 = self.axes.fill_between(f.k_r, f.S_r-f.E2, f.S_r+f.E2,
                                                  facecolor=[0.12156863, 0.46666667, 0.70588235, 0.2])
-            self.t = self.axes.set_title('L-2 misfit: {0:g}'.format(el2))
+            if lfw:
+                self.t.set_text('L-2 misfit: {0:g} (lfw: {1:g})'.format(el1, el2))
+            else:
+                self.t = self.axes.set_title('L-2 misfit: {0:g}'.format(el1))
             self.axes.set_xlabel('Wavenumber (rad/km)')
             self.axes.set_ylabel('Radial Spectrum')
         else:
@@ -111,7 +113,10 @@ class SpectrumCanvas(MyMplCanvas):
             self.axes.relim()
             self.axes.autoscale_view()
             
-            self.t.set_text('L-2 misfit: {0:g}'.format(el2))
+            if lfw:
+                self.t.set_text('L-2 misfit: {0:g} (lfw: {1:g})'.format(el1, el2))
+            else:
+                self.t.set_text('L-2 misfit: {0:g}'.format(el1))
                  
         self.draw()
     
@@ -329,6 +334,7 @@ class SpectrumParams(QGroupBox):
         self.log = QCheckBox('Log scale')
         self.log.setChecked(True)
         
+        self.estiml = QLabel('Estimator')
         self.estimator = QComboBox()
         self.estimator.addItems(('FFT','Maximum Entropy (Srinivasa)', 'Maximum Entropy (Lim-Malik)'))
 #        self.estimator.addItems(('FFT','Maximum Entropy'))
@@ -350,7 +356,7 @@ class SpectrumParams(QGroupBox):
         gl.addWidget(self.taperwin, 1, 5)
         gl.addWidget(self.log, 1, 6)
         
-        gl.addWidget(QLabel('Estimator'), 2, 0)
+        gl.addWidget(self.estiml, 2, 0)
         gl.addWidget(self.estimator, 2, 1, 1, 3)
         gl.addWidget(self.memest, 2, 4)
         gl.addWidget(self.orderl, 2, 5)
@@ -806,6 +812,8 @@ class PyCPD(QMainWindow):
         self.mp.Ced.editingFinished.connect(self.updateSpectrum)
         self.mp.fit2step.clicked.connect(self.fitSpec2step)
         self.mp.fit.clicked.connect(self.fitSpectrum)
+        self.mp.lfc.stateChanged.connect(self.updateSpectrum)
+
         
         self.sp.type.currentIndexChanged.connect(self.computeSpectrum)
         self.sp.detrend.currentIndexChanged.connect(self.computeSpectrum)
@@ -935,7 +943,7 @@ class PyCPD(QMainWindow):
             
     def computeSpectrum(self, x=None, y=None):
         if self.grid != None:
-            if self.sp.estimator.currentIndex() == 1:
+            if self.sp.estimator.currentIndex() == 1 or self.sp.type.currentIndex() == 1:
                 self.sp.memest.setVisible(True)
                 if self.sp.memest.currentIndex() == 1:
                     self.sp.order.setVisible(True)
@@ -944,6 +952,14 @@ class PyCPD(QMainWindow):
                 self.sp.memest.setVisible(False)
                 self.sp.order.setVisible(False)
                 self.sp.orderl.setVisible(False)
+                
+            if self.sp.type.currentIndex() == 1:
+                self.sp.estiml.setVisible(False)
+                self.sp.estimator.setVisible(False)
+            else:
+                self.sp.estiml.setVisible(True)
+                self.sp.estimator.setVisible(True)
+
                 
             f = None
             if x != None and y != None:
@@ -980,7 +996,8 @@ class PyCPD(QMainWindow):
                                                                          order=order)
                 else:
                     f.S_r, f.k_r, f.theta, _ = self.grid.getAzimuthalSpectrum(f.x, f.y, ww, win,
-                                                                              detrend)
+                                                                              detrend, memest=memest,
+                                                                              order=order)
                     
                 
                 self.updateSpectrum()
