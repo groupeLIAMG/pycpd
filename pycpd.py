@@ -10,7 +10,6 @@ BhTomoPy is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
-
 This program is distributed in the hope that it /will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -29,7 +28,6 @@ from scipy.signal import tukey, hanning
 
 import matplotlib
 from PyQt5.QtGui import QDoubleValidator, QIntValidator
-from _ast import Attribute
 
 # Make sure that we are using QT5
 matplotlib.use('Qt5Agg')
@@ -37,7 +35,7 @@ from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QMa
                              QApplication, QGroupBox, QLabel, QLineEdit, QComboBox, QFileDialog,
                              QGridLayout, QSlider, QSizePolicy, QAction, qApp, QFrame, QMessageBox,
                              QTabWidget, QDialog, QListWidget, QListWidgetItem)
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QLocale
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
@@ -48,6 +46,8 @@ from matplotlib.figure import Figure
 from mpl_toolkits.basemap import Basemap, cm  # @UnresolvedImport
 
 import cpd
+
+locale = QLocale()
 
 class MyMplCanvas(FigureCanvas):
     """Ultimately, this is a QWidget (as well as a FigureCanvasAgg, etc.)."""
@@ -326,9 +326,9 @@ class SpectrumParams(QGroupBox):
         self.detrend.addItems(('None', 'Linear', 'Mean', 'Median', 'Mid'))
         self.detrend.setCurrentIndex(1)
         self.taperwin = QComboBox()
-        self.taperwin.addItems(('tukey', 'hanning'))
+        self.taperwin.addItems(('tukey', 'hanning', 'None'))
         self.taperwin.setCurrentIndex(0)
-        self.winsize = QLineEdit('500.0')
+        self.winsize = QLineEdit(locale.toString(500.0, format='f', precision=1))
         self.winsize.setValidator(QDoubleValidator())
 #        self.winsize.setMinimumWidth(75)
         self.log = QCheckBox('Log scale')
@@ -341,10 +341,14 @@ class SpectrumParams(QGroupBox):
         self.estimator.setMaximumWidth(200)
         self.memest =  QComboBox()
         self.memest.addItems(('FFT', 'ARMA'))
-        self.order = QLineEdit('3')
+        self.order = QLineEdit('15')
         self.order.setValidator(QIntValidator())
         self.orderl = QLabel('MEM order')
         self.orderl.setAlignment(Qt.AlignRight)
+        
+        self.memest.setVisible(False)
+        self.order.setVisible(False)
+        self.orderl.setVisible(False)
         
         gl = QGridLayout()
         gl.addWidget(self.type, 0, 0, 1, 2)
@@ -412,16 +416,16 @@ class MausParams(QGroupBox):
         val = int((C-self.bC[0])/(self.bC[1]-self.bC[0]) * self.C_fac)
         self.Csl.setValue(val)
                 
-        self.betaed = QLineEdit('{0:5.2f}'.format(beta))
+        self.betaed = QLineEdit(locale.toString(beta, format='f', precision=2))
         self.betaed.setMinimumWidth(75)
         self.betaed.setValidator(QDoubleValidator())
-        self.zted = QLineEdit('{0:5.1f}'.format(zt))
+        self.zted = QLineEdit(locale.toString(zt, format='f', precision=1))
         self.zted.setMinimumWidth(75)
         self.zted.setValidator(QDoubleValidator())
-        self.dzed = QLineEdit('{0:5.1f}'.format(dz))
+        self.dzed = QLineEdit(locale.toString(dz, format='f', precision=1))
         self.dzed.setMinimumWidth(75)
         self.dzed.setValidator(QDoubleValidator())
-        self.Ced = QLineEdit('{0:5.1f}'.format(C))
+        self.Ced = QLineEdit(locale.toString(C, format='f', precision=1))
         self.Ced.setMinimumWidth(75)
         self.Ced.setValidator(QDoubleValidator())
         
@@ -432,28 +436,28 @@ class MausParams(QGroupBox):
         self.lfc = QCheckBox('Low frequency weighting')
         self.lfc.setChecked(False)
         
-        self.beta_lb = QLineEdit('1.5')
+        self.beta_lb = QLineEdit(locale.toString(1.5, format='f', precision=1))
         self.beta_lb.setEnabled(False)
         self.beta_lb.setValidator(QDoubleValidator())
-        self.beta_ub = QLineEdit('5.8')
+        self.beta_ub = QLineEdit(locale.toString(5.8, format='f', precision=1))
         self.beta_ub.setEnabled(False)
         self.beta_ub.setValidator(QDoubleValidator())
-        self.zt_lb = QLineEdit('0.0')
+        self.zt_lb = QLineEdit(locale.toString(0.0, format='f', precision=1))
         self.zt_lb.setEnabled(False)
         self.zt_lb.setValidator(QDoubleValidator())
-        self.zt_ub = QLineEdit('5.0')
+        self.zt_ub = QLineEdit(locale.toString(5.0, format='f', precision=1))
         self.zt_ub.setEnabled(False)
         self.zt_ub.setValidator(QDoubleValidator())
-        self.dz_lb = QLineEdit('3.0')
+        self.dz_lb = QLineEdit(locale.toString(3.0, format='f', precision=1))
         self.dz_lb.setEnabled(False)
         self.dz_lb.setValidator(QDoubleValidator())
-        self.dz_ub = QLineEdit('80.0')
+        self.dz_ub = QLineEdit(locale.toString(80.0, format='f', precision=1))
         self.dz_ub.setEnabled(False)
         self.dz_ub.setValidator(QDoubleValidator())
-        self.C_lb = QLineEdit('-10.0')
+        self.C_lb = QLineEdit(locale.toString(-10.0, format='f', precision=1))
         self.C_lb.setEnabled(False)
         self.C_lb.setValidator(QDoubleValidator())
-        self.C_ub = QLineEdit('50.0')
+        self.C_ub = QLineEdit(locale.toString(50.0, format='f', precision=1))
         self.C_ub.setEnabled(False)
         self.C_ub.setValidator(QDoubleValidator())
         
@@ -526,40 +530,40 @@ class MausParams(QGroupBox):
     def betaslChanged(self):
         val = self.betasl.value()
         val = self.bbeta[0] + (1.0*val)/self.beta_fac * (self.bbeta[1]-self.bbeta[0])
-        self.betaed.setText('{0:5.2f}'.format(val))
+        self.betaed.setText(locale.toString(val, format='f', precision=2))
 
     def ztslChanged(self):
         val = self.ztsl.value()
         val = self.bzt[0] + (1.0*val)/self.zt_fac * (self.bzt[1]-self.bzt[0])
-        self.zted.setText('{0:5.1f}'.format(val))
+        self.zted.setText(locale.toString(val, format='f', precision=1))
 
     def dzslChanged(self):
         val = self.dzsl.value()
         val = self.bdz[0] + (1.0*val)/self.dz_fac * (self.bdz[1]-self.bdz[0])
-        self.dzed.setText('{0:5.1f}'.format(val))
+        self.dzed.setText(locale.toString(val, format='f', precision=1))
 
     def CslChanged(self):
         val = self.Csl.value()
         val = self.bC[0] + (1.0*val)/self.C_fac * (self.bC[1]-self.bC[0])
-        self.Ced.setText('{0:5.1f}'.format(val))
+        self.Ced.setText(locale.toString(val, format='f', precision=1))
         
     def betaeChanged(self):
-        val = float(self.betaed.text())
+        val = locale.toDouble(self.betaed.text())[0]
         val = int((val-self.bbeta[0])/(self.bbeta[1]-self.bbeta[0]) * self.beta_fac)
         self.betasl.setValue(val)
 
     def zteChanged(self):
-        val = float(self.zted.text())
+        val = locale.toDouble(self.zted.text())[0]
         val = int((val-self.bzt[0])/(self.bzt[1]-self.bzt[0]) * self.zt_fac)
         self.ztsl.setValue(val)
 
     def dzeChanged(self):
-        val = float(self.dzed.text())
+        val = locale.toDouble(self.dzed.text())[0]
         val = int((val-self.bdz[0])/(self.bdz[1]-self.bdz[0]) * self.dz_fac)
         self.dzsl.setValue(val)
 
     def CeChanged(self):
-        val = float(self.Ced.text())
+        val = locale.toDouble(self.Ced.text())[0]
         val = int((val-self.bC[0])/(self.bC[1]-self.bC[0]) * self.C_fac)
         self.Csl.setValue(val)
         
@@ -583,21 +587,21 @@ class LachenbruchParams(QGroupBox):
         
         hbox = QHBoxLayout()
         hbox.addWidget(QLabel('Characteristic depth (km)'))
-        self.D = QLineEdit('7.74')
+        self.D = QLineEdit(locale.toString(7.74, format='f', precision=2))
         self.D.setValidator(QDoubleValidator())
         hbox.addWidget(self.D)
         self.override = QCheckBox('Override bh data')
         hbox.addWidget(self.override)
         hbox.addWidget(QLabel('Q0'))
-        self.Q0 = QLineEdit('40.0')
+        self.Q0 = QLineEdit(locale.toString(40.0, format='f', precision=1))
         self.Q0.setValidator(QDoubleValidator())
         hbox.addWidget(self.Q0)
         hbox.addWidget(QLabel('A'))
-        self.A = QLineEdit('2.0')
+        self.A = QLineEdit(locale.toString(2.0, format='f', precision=1))
         self.A.setValidator(QDoubleValidator())
         hbox.addWidget(self.A)
         hbox.addWidget(QLabel('k'))
-        self.k = QLineEdit('4.0')
+        self.k = QLineEdit(locale.toString(4.0, format='f', precision=1))
         self.k.setValidator(QDoubleValidator())
         hbox.addWidget(self.k)
         
@@ -764,14 +768,14 @@ class PyCPD(QMainWindow):
         aminl = QLabel('A min')
         aminl.setAlignment(Qt.AlignRight)
         mcl.addWidget(aminl)
-        self.amin = QLineEdit(str(self.locmap.amin))
+        self.amin = QLineEdit(locale.toString(self.locmap.amin))
         self.amin.setValidator(QDoubleValidator())
         self.amin.setMaximumWidth(100)
         mcl.addWidget(self.amin)
         amaxl = QLabel('A max')
         amaxl.setAlignment(Qt.AlignRight)        
         mcl.addWidget(amaxl)
-        self.amax = QLineEdit(str(self.locmap.amax))
+        self.amax = QLineEdit(locale.toString(self.locmap.amax))
         self.amax.setValidator(QDoubleValidator())
         self.amax.setMaximumWidth(100)
         mcl.addWidget(self.amax)
@@ -869,11 +873,11 @@ class PyCPD(QMainWindow):
     def achanged(self):
         if self.locmap == None:
             return
-        amin = float(self.amin.text())
-        amax = float(self.amax.text())
+        amin = locale.toDouble(self.amin.text())[0]
+        amax = locale.toDouble(self.amax.text())[0]
         if amin > amax:
             QMessageBox.warning(self, 'Warning', 'min value larger than max value, figure not updated', QMessageBox.Ok)
-            self.amin.setText((str(amax-1)))
+            self.amin.setText((locale.toString(amax-1)))
             return
         self.locmap.set_clim(amin, amax)
         
@@ -907,17 +911,17 @@ class PyCPD(QMainWindow):
 
             self.bh.Q0.clear()
             for q in f.Q0:
-                self.bh.Q0.addItem(str(q))
+                self.bh.Q0.addItem(locale.toString(q))
             
             self.bh.A.clear()
             if len(f.A)>0:
                 for a in f.A:
-                    self.bh.A.addItem(str(a))
+                    self.bh.A.addItem(locale.toString(a))
             
             self.bh.k.clear()
             if len(f.k)>0:
                 for k in f.k:
-                    self.bh.k.addItem(str(k))
+                    self.bh.k.addItem(locale.toString(k))
                     
             if f.offshore:
                 self.bh.offshore.setText('Offshore, depth = {0:g} m'.format(f.bathy))
@@ -941,10 +945,10 @@ class PyCPD(QMainWindow):
             
         if f != None:
             if self.sp.type.currentIndex() == 0:
-                beta = float(self.mp.betaed.text())
-                zt = float(self.mp.zted.text())
-                dz = float(self.mp.dzed.text())
-                C = float(self.mp.Ced.text())
+                beta = locale.toDouble(self.mp.betaed.text())[0]
+                zt = locale.toDouble(self.mp.zted.text())[0]
+                dz = locale.toDouble(self.mp.dzed.text())[0]
+                C = locale.toDouble(self.mp.Ced.text())[0]
                 self.splot.plot(f, (beta, zt, dz, C), self.sp.log.isChecked(), self.mp.lfc.isChecked())
             else:
                 self.splot.plot2D(f, self.sp.log.isChecked())
@@ -956,6 +960,9 @@ class PyCPD(QMainWindow):
                 if self.sp.memest.currentIndex() == 1:
                     self.sp.order.setVisible(True)
                     self.sp.orderl.setVisible(True)
+                else:
+                    self.sp.order.setVisible(False)
+                    self.sp.orderl.setVisible(False)
             else:
                 self.sp.memest.setVisible(False)
                 self.sp.order.setVisible(False)
@@ -977,7 +984,7 @@ class PyCPD(QMainWindow):
                 f.y = y
                 
                 self.statusBar().clearMessage()
-                self.statusBar().showMessage('Point at '+str(f.x)+', '+str(f.y))
+                self.statusBar().showMessage('Point at '+locale.toString(f.x)+', '+locale.toString(f.y))
                 
             elif self.forage != None:
                 f = self.forage
@@ -988,11 +995,13 @@ class PyCPD(QMainWindow):
                 self.statusBar().showMessage('Borehole: '+f.site_name)
                 
             if f != None:
-                ww = 1000.*float(self.sp.winsize.text())
+                ww = 1000.0 * locale.toDouble(self.sp.winsize.text())[0]
                 if self.sp.taperwin.currentIndex() == 0:
                     win = tukey
                 elif self.sp.taperwin.currentIndex() == 1:
                     win = hanning
+                else:
+                    win = None
                 detrend = self.sp.detrend.currentIndex()
                 mem = self.sp.estimator.currentIndex()
                 memest = self.sp.memest.currentIndex()
@@ -1153,10 +1162,10 @@ class PyCPD(QMainWindow):
         elif self.forages != None:
             f = self.forages[self.bh.bhlist.currentIndex()]
         if f != None:
-            beta = float(self.mp.betaed.text())
-            zt = float(self.mp.zted.text())
-            dz = float(self.mp.dzed.text())
-            C = float(self.mp.Ced.text())
+            beta = locale.toDouble(self.mp.betaed.text())[0]
+            zt = locale.toDouble(self.mp.zted.text())[0]
+            dz = locale.toDouble(self.mp.dzed.text())[0]
+            C = locale.toDouble(self.mp.Ced.text())[0]
             
             betac = self.mp.betac.isChecked()
             ztc = self.mp.ztc.isChecked()
@@ -1168,14 +1177,14 @@ class PyCPD(QMainWindow):
             
             # none fixed
             if not betac and not ztc and not dzc and not Cc:
-                lb = (float(self.mp.beta_lb.text()),
-                      float(self.mp.zt_lb.text()),
-                      float(self.mp.dz_lb.text()),
-                      float(self.mp.C_lb.text()))
-                ub = (float(self.mp.beta_ub.text()),
-                      float(self.mp.zt_ub.text()),
-                      float(self.mp.dz_ub.text()),
-                      float(self.mp.C_ub.text()))
+                lb = (locale.toDouble(self.mp.beta_lb.text())[0],
+                      locale.toDouble(self.mp.zt_lb.text())[0],
+                      locale.toDouble(self.mp.dz_lb.text())[0],
+                      locale.toDouble(self.mp.C_lb.text())[0])
+                ub = (locale.toDouble(self.mp.beta_ub.text())[0],
+                      locale.toDouble(self.mp.zt_ub.text())[0],
+                      locale.toDouble(self.mp.dz_ub.text())[0],
+                      locale.toDouble(self.mp.C_ub.text())[0])
                 x = cpd.find_beta_zt_dz_C(f.S_r, f.k_r, beta, zt, dz, C, lfc, meth, lb, ub)
                 beta = x[0]
                 zt = x[1]
@@ -1183,97 +1192,97 @@ class PyCPD(QMainWindow):
                 C = x[3]
             # beta alone not fixed
             elif not betac and ztc and dzc and Cc:
-                lb = (float(self.mp.beta_lb.text()))
-                ub = (float(self.mp.beta_ub.text()))
+                lb = (locale.toDouble(self.mp.beta_lb.text())[0])
+                ub = (locale.toDouble(self.mp.beta_ub.text())[0])
                 x = cpd.find_beta(dz, f.S_r, f.k_r, beta, zt, C, lfc, meth, lb, ub)
                 beta = x[0]
             # zt alone not fixed
             elif betac and not ztc and dzc and Cc:
-                lb = (float(self.mp.zt_lb.text()))
-                ub = (float(self.mp.zt_ub.text()))
+                lb = (locale.toDouble(self.mp.zt_lb.text())[0])
+                ub = (locale.toDouble(self.mp.zt_ub.text())[0])
                 x = cpd.find_zt(dz, f.S_r, f.k_r, beta, zt, C, lfc, meth, lb, ub)
                 zt = x[0]
             # dz alone not fixed
             elif betac and ztc and not dzc and Cc:
-                lb = (float(self.mp.dz_lb.text()))
-                ub = (float(self.mp.dz_ub.text()))
+                lb = (locale.toDouble(self.mp.dz_lb.text())[0])
+                ub = (locale.toDouble(self.mp.dz_ub.text())[0])
                 x = cpd.find_dz(dz, f.S_r, f.k_r, beta, zt, C, lfc, meth, lb, ub)
                 dz = x[0]
             # C alone not fixed
             elif betac and ztc and dzc and not Cc:
-                lb = (float(self.mp.C_lb.text()))
-                ub = (float(self.mp.C_ub.text()))
+                lb = (locale.toDouble(self.mp.C_lb.text())[0])
+                ub = (locale.toDouble(self.mp.C_ub.text())[0])
                 x = cpd.find_C(dz, f.S_r, f.k_r, beta, zt, C, lfc, meth, lb, ub)
                 C = x[0]
             # beta alone fixed
             elif betac and not ztc and not dzc and not Cc:
-                lb = (float(self.mp.dz_lb.text()),
-                      float(self.mp.zt_lb.text()),
-                      float(self.mp.C_lb.text()))
-                ub = (float(self.mp.dz_ub.text()),
-                      float(self.mp.zt_ub.text()),
-                      float(self.mp.C_ub.text()))
+                lb = (locale.toDouble(self.mp.dz_lb.text())[0],
+                      locale.toDouble(self.mp.zt_lb.text())[0],
+                      locale.toDouble(self.mp.C_lb.text())[0])
+                ub = (locale.toDouble(self.mp.dz_ub.text())[0],
+                      locale.toDouble(self.mp.zt_ub.text())[0],
+                      locale.toDouble(self.mp.C_ub.text())[0])
                 x = cpd.find_dz_zt_C(f.S_r, f.k_r, beta, dz, zt, C, lfc, meth, lb, ub)
                 dz = x[0]
                 zt = x[1]
                 C = x[2]
             # dz alone fixed
             elif not betac and not ztc and dzc and not Cc:
-                lb = (float(self.mp.beta_lb.text()),
-                      float(self.mp.zt_lb.text()),
-                      float(self.mp.C_lb.text()))
-                ub = (float(self.mp.beta_ub.text()),
-                      float(self.mp.zt_ub.text()),
-                      float(self.mp.C_ub.text()))
+                lb = (locale.toDouble(self.mp.beta_lb.text())[0],
+                      locale.toDouble(self.mp.zt_lb.text())[0],
+                      locale.toDouble(self.mp.C_lb.text())[0])
+                ub = (locale.toDouble(self.mp.beta_ub.text())[0],
+                      locale.toDouble(self.mp.zt_ub.text())[0],
+                      locale.toDouble(self.mp.C_ub.text())[0])
                 x = cpd.find_beta_zt_C(f.S_r, f.k_r, beta, zt, C, dz, lfc, meth, lb, ub)
                 beta = x[0]
                 zt = x[1]
                 C = x[2]
             # C alone fixed
             elif not betac and not ztc and not dzc and Cc:
-                lb = (float(self.mp.beta_lb.text()),
-                      float(self.mp.dz_lb.text()),
-                      float(self.mp.zt_lb.text()))
-                ub = (float(self.mp.beta_ub.text()),
-                      float(self.mp.dz_ub.text()),
-                      float(self.mp.zt_ub.text()))
+                lb = (locale.toDouble(self.mp.beta_lb.text())[0],
+                      locale.toDouble(self.mp.dz_lb.text())[0],
+                      locale.toDouble(self.mp.zt_lb.text())[0])
+                ub = (locale.toDouble(self.mp.beta_ub.text())[0],
+                      locale.toDouble(self.mp.dz_ub.text())[0],
+                      locale.toDouble(self.mp.zt_ub.text())[0])
                 x = cpd.find_beta_dz_zt(f.S_r, f.k_r, beta, dz, zt, C, lfc, meth, lb, ub)
                 beta = x[0]
                 dz = x[1]
                 zt = x[2]
             # zt and dz fixed
             elif not betac and ztc and dzc and not Cc:
-                lb = (float(self.mp.beta_lb.text()),
-                      float(self.mp.C_lb.text()))
-                ub = (float(self.mp.beta_ub.text()),
-                      float(self.mp.C_ub.text()))
+                lb = (locale.toDouble(self.mp.beta_lb.text())[0],
+                      locale.toDouble(self.mp.C_lb.text())[0])
+                ub = (locale.toDouble(self.mp.beta_ub.text())[0],
+                      locale.toDouble(self.mp.C_ub.text())[0])
                 x = cpd.find_beta_C(dz, f.S_r, f.k_r, beta, C, zt, lfc, meth, lb, ub)
                 beta = x[0]
                 C = x[1]
             # C and dz fixed
             elif not betac and not ztc and dzc and Cc:
-                lb = (float(self.mp.beta_lb.text()),
-                      float(self.mp.zt_lb.text()))
-                ub = (float(self.mp.beta_ub.text()),
-                      float(self.mp.zt_ub.text()))
+                lb = (locale.toDouble(self.mp.beta_lb.text())[0],
+                      locale.toDouble(self.mp.zt_lb.text())[0])
+                ub = (locale.toDouble(self.mp.beta_ub.text())[0],
+                      locale.toDouble(self.mp.zt_ub.text())[0])
                 x = cpd.find_beta_zt(dz, f.S_r, f.k_r, beta, zt, C, lfc, meth, lb, ub)
                 beta = x[0]
                 zt = x[1]
             # beta and C fixed
             elif betac and not ztc and not dzc and Cc:
-                lb = (float(self.mp.dz_lb.text()),
-                      float(self.mp.zt_lb.text()))
-                ub = (float(self.mp.dz_ub.text()),
-                      float(self.mp.zt_ub.text()))
+                lb = (locale.toDouble(self.mp.dz_lb.text())[0],
+                      locale.toDouble(self.mp.zt_lb.text())[0])
+                ub = (locale.toDouble(self.mp.dz_ub.text())[0],
+                      locale.toDouble(self.mp.zt_ub.text())[0])
                 x = cpd.find_dz_zt(f.S_r, f.k_r, dz, zt, beta, C, lfc, meth, lb, ub)
                 dz = x[0]
                 zt = x[1]
             # beta and dz fixed
             elif betac and not ztc and dzc and not Cc:
-                lb = (float(self.mp.zt_lb.text()),
-                      float(self.mp.C_lb.text()))
-                ub = (float(self.mp.zt_ub.text()),
-                      float(self.mp.C_ub.text()))
+                lb = (locale.toDouble(self.mp.zt_lb.text())[0],
+                      locale.toDouble(self.mp.C_lb.text())[0])
+                ub = (locale.toDouble(self.mp.zt_ub.text())[0],
+                      locale.toDouble(self.mp.C_ub.text())[0])
                 x = cpd.find_zt_C(f.S_r, f.k_r, beta, dz, zt, C, lfc, meth, lb, ub)
                 zt = x[0]
                 C = x[1]
@@ -1282,13 +1291,13 @@ class PyCPD(QMainWindow):
                 return
                 
             
-            self.mp.betaed.setText('{0:5.2f}'.format(beta))
+            self.mp.betaed.setText(locale.toString(beta, format='f', precision=2))
             self.mp.betaeChanged()
-            self.mp.zted.setText('{0:5.1f}'.format(zt))
+            self.mp.zted.setText(locale.toString(zt, format='f', precision=1))
             self.mp.zteChanged()
-            self.mp.dzed.setText('{0:5.1f}'.format(dz))
+            self.mp.dzed.setText(locale.toString(dz, format='f', precision=1))
             self.mp.dzeChanged()
-            self.mp.Ced.setText('{0:5.1f}'.format(C))
+            self.mp.Ced.setText(locale.toString(C, format='f', precision=1))
             self.mp.CeChanged()
             self.updateSpectrum()
     
@@ -1299,37 +1308,37 @@ class PyCPD(QMainWindow):
         elif self.forages != None:
             f = self.forages[self.bh.bhlist.currentIndex()]
         if f != None:
-            beta = float(self.mp.betaed.text())
-            zt = float(self.mp.zted.text())
-            dz = float(self.mp.dzed.text())
-            C = float(self.mp.Ced.text())
+            beta = locale.toDouble(self.mp.betaed.text())[0]
+            zt = locale.toDouble(self.mp.zted.text())[0]
+            dz = locale.toDouble(self.mp.dzed.text())[0]
+            C = locale.toDouble(self.mp.Ced.text())[0]
             lfc = self.mp.lfc.isChecked()
             
             meth = self.mp.method
 
-            lb = (float(self.mp.beta_lb.text()),
-                  float(self.mp.C_lb.text()))
-            ub = (float(self.mp.beta_ub.text()),
-                  float(self.mp.C_ub.text()))
+            lb = (locale.toDouble(self.mp.beta_lb.text())[0],
+                  locale.toDouble(self.mp.C_lb.text())[0])
+            ub = (locale.toDouble(self.mp.beta_ub.text())[0],
+                  locale.toDouble(self.mp.C_ub.text())[0])
             x = cpd.find_beta_C(dz, f.S_r, f.k_r, beta, C, zt, lfc, meth, lb, ub)
             beta = x[0]
             C = x[1]
 
-            lb = (float(self.mp.dz_lb.text()),
-                  float(self.mp.zt_lb.text()))
-            ub = (float(self.mp.dz_ub.text()),
-                  float(self.mp.zt_ub.text()))
+            lb = (locale.toDouble(self.mp.dz_lb.text())[0],
+                  locale.toDouble(self.mp.zt_lb.text())[0])
+            ub = (locale.toDouble(self.mp.dz_ub.text())[0],
+                  locale.toDouble(self.mp.zt_ub.text())[0])
             x = cpd.find_dz_zt(f.S_r, f.k_r, dz, zt, beta, C, lfc, meth, lb, ub)
             dz = x[0]
             zt = x[1]
             
-            self.mp.betaed.setText('{0:5.2f}'.format(beta))
+            self.mp.betaed.setText(locale.toString(beta, format='f', precision=2))
             self.mp.betaeChanged()
-            self.mp.zted.setText('{0:5.1f}'.format(zt))
+            self.mp.zted.setText(locale.toString(zt, format='f', precision=1))
             self.mp.zteChanged()
-            self.mp.dzed.setText('{0:5.1f}'.format(dz))
+            self.mp.dzed.setText(locale.toString(dz, format='f', precision=1))
             self.mp.dzeChanged()
-            self.mp.Ced.setText('{0:5.1f}'.format(C))
+            self.mp.Ced.setText(locale.toString(C, format='f', precision=1))
             self.mp.CeChanged()
             self.updateSpectrum()
             
@@ -1339,7 +1348,7 @@ class PyCPD(QMainWindow):
             if len(f.A_sim)>0:
                 fig = plt.figure()
                 fig.set_size_inches(7,5)
-                plt.hist(f.A_sim, bins=30, label='Median: '+str(np.median(f.A_sim)))
+                plt.hist(f.A_sim, bins=30, label='Median: '+locale.toString(np.median(f.A_sim)))
                 plt.title(f.site_name+' - Heat production')
                 plt.legend()
                 plt.show()
@@ -1352,7 +1361,7 @@ class PyCPD(QMainWindow):
             if len(f.k_sim)>0:
                 fig = plt.figure()
                 fig.set_size_inches(7, 5)
-                plt.hist(f.k_sim, bins=30, label='Median: '+str(np.median(f.k_sim)))
+                plt.hist(f.k_sim, bins=30, label='Median: '+locale.toString(np.median(f.k_sim)))
                 plt.title(f.site_name+' - Thermal conductivity')
                 plt.legend()
                 plt.show()
@@ -1363,15 +1372,15 @@ class PyCPD(QMainWindow):
     def plotLachenbruch(self):
         if self.forages != None:
             f = self.forages[self.bh.bhlist.currentIndex()]
-            z = 1000.0*np.arange(81)            
-            D = 1000.*float(self.lach.D.text())
+            z = 1000.0 * np.arange(81)            
+            D = 1000.0 * locale.toDouble(self.lach.D.text())[0]
             if self.bh.Q0.count() == 0:
                 return  # bh not yet displayed
         
             if self.lach.override.isChecked():
-                Q0 = float(self.lach.Q0.text())
-                A = float(self.lach.A.text())
-                k = float(self.lach.k.text())
+                Q0 = locale.toDouble(self.lach.Q0.text())[0]
+                A = locale.toDouble(self.lach.A.text())[0]
+                k = locale.toDouble(self.lach.k.text())[0]
             else:
                 if f.Q0.size == 1:
                     Q0 = f.Q0[0]
@@ -1411,12 +1420,12 @@ if __name__ == '__main__':
     ex = PyCPD()
     
     if os.path.isfile('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages.db'):
-         
+          
         db = shelve.open('/Users/giroux/JacquesCloud/Projets/CDP/databases/forages','r')
         ex.forages = db['forages']
         db.close()
         ex.bh.setList(ex.forages)
-          
+           
         ex.grid = cpd.Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
         ex.grid.readnc('/Users/giroux/JacquesCloud/Projets/CDP/NAmag/Qc_lcc_k_cut.nc')
         ex.locmap.drawMap(ex.grid)
