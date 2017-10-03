@@ -49,6 +49,7 @@ beta_ub = 5.8
 C_lb = -np.inf
 C_ub = np.inf
 
+
 class Point:
     def __init__(self, x, y):
         self.x = x
@@ -352,7 +353,7 @@ class Grid2d:
 
 
     def _getSubgrid(self, xc, yc, ww, detrend):
-        
+
         nw = 1+int(ww/self.dx)
         nw2 = int(nw/2)
         ix = int((xc-self.xwest)/self.dx)
@@ -408,7 +409,7 @@ class Grid2d:
             data = data - mid
 
         return data, nw, flagPad
-        
+
 
     def getRadialSpectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scalFac=0.001,
                            mem=0, memest=0, order=10):
@@ -454,7 +455,7 @@ class Grid2d:
             raise RuntimeError('Grid cell size should be equal in x and y')
 
         data, nw, flagPad = self._getSubgrid(xc, yc, ww, detrend)
-        
+
         taper_val = np.ones(data.shape)
 
         if taper == None:
@@ -507,7 +508,7 @@ class Grid2d:
             theta = np.pi*np.arange(0.0,180.0,5.0)/180.0
             sinogram = radon.radon2d(data, theta)
             SS = np.zeros((theta.size,k.size))
-            
+
             # apply taper on individual directions
             if taper == None:
                 taper_val = 1.0
@@ -580,7 +581,7 @@ class Grid2d:
                      If 0, use FFT (the default)
                      if 1, use ARMA model
         order    : order of ARMA estimator
-       
+
 
         Returns
         -------
@@ -598,7 +599,7 @@ class Grid2d:
             raise RuntimeError('Grid cell size should be equal in x and y')
 
         data, nw, flagPad = self._getSubgrid(xc, yc, ww, detrend)
-        
+
         dx = self.dx * scalFac  # from m to km
         dk = 2.0*np.pi / (nw-1) / dx
 
@@ -614,7 +615,7 @@ class Grid2d:
             taper_val = taper(sinogram.shape[0], alpha=0.05)
         else:
             taper_val = taper(sinogram.shape[0])
-        
+
         for n in range(theta.size):
             if memest == 0:
                 PSD = np.abs(np.fft.fft(taper_val * sinogram[:,n], n=1+2*k.size))
@@ -702,14 +703,14 @@ def find_beta(dz, Phi_exp, kh, beta0, zt=1.0, C=0, wlf=False, method='fmin', lb=
             lb = np.array([beta_lb])
         if len(ub) == 0:
             ub = np.array([beta_ub])
-    
+
         res = least_squares(func, x0=beta0, jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, zt, kh, C))
         beta_opt = res.x[0]
         misfit = res.cost
 
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt, dz, kh, C))
-        
+
     return beta_opt, misfit
 
 def find_zt(dz, Phi_exp, kh, beta, zt0, C=0, wlf=False, method='fmin', lb=[], ub=[]):
@@ -752,14 +753,14 @@ def find_zt(dz, Phi_exp, kh, beta, zt0, C=0, wlf=False, method='fmin', lb=[], ub
             lb = np.array([zt_lb])
         if len(ub) == 0:
             ub = np.array([zt_ub])
-    
+
         res = least_squares(func, x0=zt0, jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, beta, kh, C))
         zt_opt = res.x[0]
         misfit = res.cost
 
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, dz, kh, C))
-        
+
     return zt_opt, misfit
 
 def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False, method='fmin', lb=[], ub=[]):
@@ -802,14 +803,14 @@ def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False, method='fmin', lb=[], ub=[
             lb = np.array([dz_lb])
         if len(ub) == 0:
             ub = np.array([dz_ub])
-    
+
         res = least_squares(func, x0=dz0, jac='3-point', bounds=(lb,ub), args=(zt, Phi_exp, beta, kh, C))
         dz_opt = res.x[0]
         misfit = res.cost
 
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt, dz_opt, kh, C))
-        
+
     return dz_opt, misfit
 
 def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False, method='fmin', lb=[], ub=[]):
@@ -846,20 +847,20 @@ def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False, method='fmin', lb=[], ub=[]
         xopt = fmin(func, x0=C0, args=(zt, Phi_exp, beta, kh, dz), full_output=True, disp=False)
         C_opt = xopt[0][0]
         misfit = xopt[1]
-        
+
     elif method == 'ls':
         if len(lb) == 0:
             lb = np.array([C_lb])
         if len(ub) == 0:
             ub = np.array([C_ub])
-    
+
         res = least_squares(func, x0=C0, jac='3-point', bounds=(lb,ub), args=(zt, Phi_exp, beta, kh, dz))
         C_opt = res.x[0]
         misfit = res.cost
 
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt, dz, kh, C_opt))
-        
+
     return C_opt, misfit
 
 
@@ -910,7 +911,7 @@ def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False, method='fmin'
             lb = np.array([beta_lb, zt_lb, dz_lb, C_lb])
         if len(ub) == 0:
             ub = np.array([beta_ub, zt_ub, dz_ub, C_ub])
-    
+
         res = least_squares(func, x0=np.array([beta0, zt0, dz0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh))
         beta_opt = res.x[0]
         zt_opt = res.x[1]
@@ -920,7 +921,7 @@ def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False, method='fmin'
 
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt_opt, dz_opt, kh, C_opt))
-        
+
     return beta_opt, zt_opt, dz_opt, C_opt, misfit
 
 def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb=[], ub=[]):
@@ -969,7 +970,7 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb
             lb = np.array([beta_lb, zt_lb, C_lb])
         if len(ub) == 0:
             ub = np.array([beta_ub, zt_ub, C_ub])
-    
+
         res = least_squares(func, x0=np.array([beta0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz))
         beta_opt = res.x[0]
         zt_opt = res.x[1]
@@ -978,7 +979,7 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb
 
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt_opt, dz, kh, C_opt))
-        
+
     return beta_opt, zt_opt, C_opt, misfit
 
 def find_beta_zt_C_bound(Phi_exp, kh, beta, zt, C, zb, wlf=False):
@@ -1068,13 +1069,13 @@ def find_beta_dz_C(Phi_exp, kh, beta0, dz0, C0, zt=1.0, wlf=False, method='fmin'
         dz_opt = xopt[0][1]
         C_opt = xopt[0][2]
         misfit = xopt[1]
-        
+
     elif method == 'ls':
         if len(lb) == 0:
             lb = np.array([beta_lb, dz_lb, C_lb])
         if len(ub) == 0:
             ub = np.array([beta_ub, dz_ub, C_ub])
-    
+
         res = least_squares(func, x0=np.array([beta0, dz0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, zt))
         beta_opt = res.x[0]
         dz_opt = res.x[1]
@@ -1083,7 +1084,7 @@ def find_beta_dz_C(Phi_exp, kh, beta0, dz0, C0, zt=1.0, wlf=False, method='fmin'
 
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt, dz_opt, kh, C_opt))
-        
+
     return beta_opt, dz_opt, C_opt, misfit
 
 def find_beta_dz_zt(Phi_exp, kh, beta0, dz0, zt0, C, wlf=False, method='fmin', lb=[], ub=[]):
@@ -1126,13 +1127,13 @@ def find_beta_dz_zt(Phi_exp, kh, beta0, dz0, zt0, C, wlf=False, method='fmin', l
         dz_opt = xopt[0][1]
         zt_opt = xopt[0][2]
         misfit = xopt[1]
-        
+
     elif method == 'ls':
         if len(lb) == 0:
             lb = np.array([beta_lb, dz_lb, zt_lb])
         if len(ub) == 0:
             ub = np.array([beta_ub, dz_ub, zt_ub])
-    
+
         res = least_squares(func, x0=np.array([beta0, dz0, zt0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, C))
         beta_opt = res.x[0]
         dz_opt = res.x[1]
@@ -1141,7 +1142,7 @@ def find_beta_dz_zt(Phi_exp, kh, beta0, dz0, zt0, C, wlf=False, method='fmin', l
 
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt_opt, dz_opt, kh, C))
-        
+
     return beta_opt, dz_opt, zt_opt, misfit
 
 def find_beta_zt(dz, Phi_exp, kh, beta0, zt0, C=0, wlf=False, method='fmin', lb=[], ub=[]):
@@ -1181,13 +1182,13 @@ def find_beta_zt(dz, Phi_exp, kh, beta0, zt0, C=0, wlf=False, method='fmin', lb=
         beta_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         misfit = xopt[1]
-        
+
     elif method == 'ls':
         if len(lb) == 0:
             lb = np.array([beta_lb, zt_lb])
         if len(ub) == 0:
             ub = np.array([beta_ub, zt_ub])
-    
+
         res = least_squares(func, x0=np.array([beta0, zt0]), jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, kh, C))
         beta_opt = res.x[0]
         zt_opt = res.x[1]
@@ -1195,7 +1196,7 @@ def find_beta_zt(dz, Phi_exp, kh, beta0, zt0, C=0, wlf=False, method='fmin', lb=
 
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt_opt, dz, kh, C))
-        
+
     return beta_opt, zt_opt, misfit
 
 def find_beta_C(dz, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False, method='fmin', lb=[], ub=[]):
@@ -1235,13 +1236,13 @@ def find_beta_C(dz, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False, method='fmin', lb
         beta_opt = xopt[0][0]
         C_opt = xopt[0][1]
         misfit = xopt[1]
-        
+
     elif method == 'ls':
         if len(lb) == 0:
             lb = np.array([beta_lb, C_lb])
         if len(ub) == 0:
             ub = np.array([beta_ub, C_ub])
-    
+
         res = least_squares(func, x0=np.array([beta0, C0]), jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, kh, zt))
         beta_opt = res.x[0]
         C_opt = res.x[1]
@@ -1249,7 +1250,7 @@ def find_beta_C(dz, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False, method='fmin', lb
 
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt, dz, kh, C_opt))
-        
+
     return beta_opt, C_opt, misfit
 
 def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], ub=[]):
@@ -1294,11 +1295,10 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
             lb = np.array([dz_lb, zt_lb])
         if len(ub) == 0:
             ub = np.array([dz_ub, zt_ub])
-    
+
         res = least_squares(func, x0=np.array([dz0, zt0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta, C))
         dz_opt = res.x[0]
         zt_opt = res.x[1]
-        C_opt = res.x[2]
         misfit = res.cost
 
     if wlf:
@@ -1309,7 +1309,7 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
 # def find_zb(Phi_exp, kh, beta, zt, zb0, C=0.0, wlf=False, method='fmin', lb=[], ub=[]):
 #     '''
 #     Find depth to bottom of magnetic slab for a given radial spectrum
-# 
+#
 #     Parameters
 #     ----------
 #         Phi_exp : Spectrum values for kh
@@ -1323,7 +1323,7 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
 #                   'ls' -> least-squares
 #         lb      : lower bounds for least-squares (zb)
 #         ub      : upper bounds for least-squares (zb)
-# 
+#
 #     Returns
 #     -------
 #         zb, misfit
@@ -1336,25 +1336,25 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
 #     def func(zb, beta, Phi_exp, zt, kh, C):
 #         dz = zb - zt
 #         return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
-# 
+#
 #     if method == 'fmin':
 #         xopt = fmin(func, x0=zb0, args=(beta, Phi_exp, zt, kh, C), disp=False, full_output=True)
 #         zb_opt = xopt[0]
 #         misfit = xopt[1]
-# 
+#
 #     elif method == 'ls':
 #         if len(lb) == 0:
 #             lb = np.array([zb_lb])
 #         if len(ub) == 0:
 #             ub = np.array([zb_ub])
-#     
+#
 #         res = least_squares(func, x0=zb0, jac='3-point', bounds=(lb,ub), args=(beta, Phi_exp, zt, kh, C))
 #         zb_opt = res.x[0]
 #         misfit = res.cost
-# 
+#
 #     if wlf:
 #         misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt, zb_opt-zt, kh, C))
-# 
+#
 #     return zb_opt[0], misfit
 
 def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[], ub=[]):
@@ -1402,7 +1402,7 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
             lb = np.array([dz_lb, zt_lb, C_lb])
         if len(ub) == 0:
             ub = np.array([dz_ub, zt_ub, C_ub])
-    
+
         res = least_squares(func, x0=np.array([dz0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta))
         dz_opt = res.x[0]
         zt_opt = res.x[1]
@@ -1411,7 +1411,7 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
 
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, dz_opt, kh, C_opt))
-        
+
     return dz_opt, zt_opt, C_opt, misfit
 
 def find_zt_C(Phi_exp, kh, beta, dz, zt0, C0, wlf=False, method='fmin', lb=[], ub=[]):
@@ -1452,13 +1452,13 @@ def find_zt_C(Phi_exp, kh, beta, dz, zt0, C0, wlf=False, method='fmin', lb=[], u
         zt_opt = xopt[0][0]
         C_opt = xopt[0][1]
         misfit = xopt[1]
-        
+
     elif method == 'ls':
         if len(lb) == 0:
             lb = np.array([zt_lb, C_lb])
         if len(ub) == 0:
             ub = np.array([zt_ub, C_ub])
-    
+
         res = least_squares(func, x0=np.array([zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz, beta))
         zt_opt = res.x[0]
         C_opt = res.x[1]
@@ -1466,7 +1466,7 @@ def find_zt_C(Phi_exp, kh, beta, dz, zt0, C0, wlf=False, method='fmin', lb=[], u
 
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, dz, kh, C_opt))
-        
+
     return zt_opt, C_opt, misfit
 
 def hfu(x):
@@ -1721,7 +1721,7 @@ if __name__ == '__main__':
         g.readnc('/Users/giroux/JacquesCloud/Projets/CDP/NAmag/Qc_lcc_k.nc')
 
         S, k, theta, flag = g.getAzimuthalSpectrum(1606000.0, -1963000.0, 500000.0, tukey, 1)
-        
+
         fig, ax = plt.subplots()
         ax.set_xscale('log')
         plt.pcolormesh(k, theta, S, axes=ax)
