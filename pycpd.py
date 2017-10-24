@@ -475,6 +475,7 @@ class MausParams(QGroupBox):
         
         
         self.fit2step = QPushButton('2-step fit')
+        self.fit2step.setToolTip('Find first β and C, then ∆z and zt')
         self.fit = QPushButton('Fit to spectrum')
         
         self.betasl.valueChanged.connect(self.betaslChanged)
