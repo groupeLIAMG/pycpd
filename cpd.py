@@ -708,6 +708,9 @@ def find_beta(dz, Phi_exp, kh, beta0, zt=1.0, C=0, wlf=False, method='fmin', lb=
         beta_opt = res.x[0]
         misfit = res.cost
 
+    else:
+        raise ValueError('Method undefined')
+    
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt, dz, kh, C))
 
@@ -758,6 +761,9 @@ def find_zt(dz, Phi_exp, kh, beta, zt0, C=0, wlf=False, method='fmin', lb=[], ub
         zt_opt = res.x[0]
         misfit = res.cost
 
+    else:
+        raise ValueError('Method undefined')
+    
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, dz, kh, C))
 
@@ -808,6 +814,9 @@ def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False, method='fmin', lb=[], ub=[
         dz_opt = res.x[0]
         misfit = res.cost
 
+    else:
+        raise ValueError('Method undefined')
+    
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt, dz_opt, kh, C))
 
@@ -858,6 +867,9 @@ def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False, method='fmin', lb=[], ub=[]
         C_opt = res.x[0]
         misfit = res.cost
 
+    else:
+        raise ValueError('Method undefined')
+    
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt, dz, kh, C_opt))
 
@@ -919,6 +931,9 @@ def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False, method='fmin'
         C_opt = res.x[3]
         misfit = res.cost
 
+    else:
+        raise ValueError('Method undefined')
+    
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt_opt, dz_opt, kh, C_opt))
 
@@ -976,7 +991,57 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb
         zt_opt = res.x[1]
         C_opt = res.x[2]
         misfit = res.cost
+        
+    elif method == '2s':
+        if len(lb) == 0:
+            lb = np.array([beta_lb, zt_lb, C_lb])
+        if len(ub) == 0:
+            ub = np.array([beta_ub, zt_ub, C_ub])
 
+        res = least_squares(func, x0=np.array([beta0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz))
+        beta_opt = res.x[0]
+        zt_opt = res.x[1]
+        C_opt = res.x[2]
+        
+        xopt = fmin(func, x0=np.array([beta_opt, zt_opt, C_opt]), args=(Phi_exp, kh, dz), full_output=True, disp=False)
+        beta_opt = xopt[0][0]
+        zt_opt = xopt[0][1]
+        C_opt = xopt[0][2]
+        misfit = xopt[1]
+        
+    elif method == '2sb':
+        xopt = fmin(func, x0=np.array([beta0, zt0, C0]), args=(Phi_exp, kh, dz), full_output=True, disp=False)
+        beta_opt = xopt[0][0]
+        zt_opt = xopt[0][1]
+        C_opt = xopt[0][2]
+        
+        if len(lb) == 0:
+            lb = np.array([beta_lb, zt_lb, C_lb])
+        if len(ub) == 0:
+            ub = np.array([beta_ub, zt_ub, C_ub])
+            
+        if beta_opt < beta_lb:
+            beta_opt = beta_lb
+        if beta_opt > beta_ub:
+            beta_opt = beta_ub
+        if zt_opt < zt_lb:
+            zt_opt = zt_lb
+        if zt_opt > zt_ub:
+            zt_opt = zt_ub
+        if C_opt < C_lb:
+            C_opt = C_lb
+        if C_opt > C_ub:
+            C_opt = C_ub
+
+        res = least_squares(func, x0=np.array([beta_opt, zt_opt, C_opt]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz))
+        beta_opt = res.x[0]
+        zt_opt = res.x[1]
+        C_opt = res.x[2]
+        misfit = res.cost
+
+    else:
+        raise ValueError('Method undefined')
+    
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt_opt, dz, kh, C_opt))
 
@@ -1082,6 +1147,9 @@ def find_beta_dz_C(Phi_exp, kh, beta0, dz0, C0, zt=1.0, wlf=False, method='fmin'
         C_opt = res.x[2]
         misfit = res.cost
 
+    else:
+        raise ValueError('Method undefined')
+    
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt, dz_opt, kh, C_opt))
 
@@ -1140,6 +1208,9 @@ def find_beta_dz_zt(Phi_exp, kh, beta0, dz0, zt0, C, wlf=False, method='fmin', l
         zt_opt = res.x[2]
         misfit = res.cost
 
+    else:
+        raise ValueError('Method undefined')
+    
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt_opt, dz_opt, kh, C))
 
@@ -1194,6 +1265,9 @@ def find_beta_zt(dz, Phi_exp, kh, beta0, zt0, C=0, wlf=False, method='fmin', lb=
         zt_opt = res.x[1]
         misfit = res.cost
 
+    else:
+        raise ValueError('Method undefined')
+    
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt_opt, dz, kh, C))
 
@@ -1248,6 +1322,9 @@ def find_beta_C(dz, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False, method='fmin', lb
         C_opt = res.x[1]
         misfit = res.cost
 
+    else:
+        raise ValueError('Method undefined')
+    
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt, dz, kh, C_opt))
 
@@ -1301,6 +1378,9 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
         zt_opt = res.x[1]
         misfit = res.cost
 
+    else:
+        raise ValueError('Method undefined')
+    
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, dz_opt, kh, C))
 
@@ -1409,6 +1489,57 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
         C_opt = res.x[2]
         misfit = res.cost
 
+    elif method == '2s':
+
+        if len(lb) == 0:
+            lb = np.array([dz_lb, zt_lb, C_lb])
+        if len(ub) == 0:
+            ub = np.array([dz_ub, zt_ub, C_ub])
+
+        res = least_squares(func, x0=np.array([dz0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta))
+        dz_opt = res.x[0]
+        zt_opt = res.x[1]
+        C_opt = res.x[2]
+    
+        xopt = fmin(func, x0=np.array([dz_opt, zt_opt, C_opt]), args=(Phi_exp, kh, beta), full_output=True, disp=False)
+        dz_opt = xopt[0][0]
+        zt_opt = xopt[0][1]
+        C_opt = xopt[0][2]
+        misfit = xopt[1]
+        
+    elif method == '2sb':
+        xopt = fmin(func, x0=np.array([dz0, zt0, C0]), args=(Phi_exp, kh, beta), full_output=True, disp=False)
+        dz_opt = xopt[0][0]
+        zt_opt = xopt[0][1]
+        C_opt = xopt[0][2]
+        
+        if len(lb) == 0:
+            lb = np.array([dz_lb, zt_lb, C_lb])
+        if len(ub) == 0:
+            ub = np.array([dz_ub, zt_ub, C_ub])
+
+        if dz_opt < dz_lb:
+            dz_opt = dz_lb
+        if dz_opt > dz_ub:
+            dz_opt = dz_ub
+        if zt_opt < zt_lb:
+            zt_opt = zt_lb
+        if zt_opt > zt_ub:
+            zt_opt = zt_ub
+        if C_opt < C_lb:
+            C_opt = C_lb
+        if C_opt > C_ub:
+            C_opt = C_ub
+
+        res = least_squares(func, x0=np.array([dz_opt, zt_opt, C_opt]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta))
+        dz_opt = res.x[0]
+        zt_opt = res.x[1]
+        C_opt = res.x[2]
+        misfit = res.cost
+    
+    else:
+        raise ValueError('Method undefined')
+    
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, dz_opt, kh, C_opt))
 
@@ -1464,6 +1595,9 @@ def find_zt_C(Phi_exp, kh, beta, dz, zt0, C0, wlf=False, method='fmin', lb=[], u
         C_opt = res.x[1]
         misfit = res.cost
 
+    else:
+        raise ValueError('Method undefined')
+    
     if wlf:
         misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, dz, kh, C_opt))
 
