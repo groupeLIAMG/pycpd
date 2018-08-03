@@ -107,6 +107,14 @@ class Forage:
         else:
             return self.is_close(rhs.lat, rhs.lon)
 
+    def __str__(self):
+        val = 'Site Name: '+self.site_name+'\n'
+        val += 'Latitude: {0:8.6f}\nLongitude: {1:8.6f}\n'.format(self.lat, self.lon)
+        val += 'Q0: '+str(self.Q0)+'\n'
+        val += 'k : '+str(self.k)+'\n'
+        val += 'A : '+str(self.A)+'\n'
+        return val
+
     def is_close(self, lat, lon, tol=0.00001):
         return abs(self.lat-lat)<tol and abs(self.lon-lon)<tol
 
