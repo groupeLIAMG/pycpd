@@ -228,6 +228,9 @@ class Grid2d:
         varx[:] = self.xwest + self.dx*np.arange(self.ncol, dtype=np.float64)
         vary[:] = self.ysouth + self.dy*np.arange(self.nrow, dtype=np.float64)
         varz[:] = np.array(self.data, dtype=np.float32)
+        # set range to ensure correct grid registration
+        varx.actual_range = [varx[0], varx[-1]]
+        vary.actual_range = [vary[0], vary[-1]]
 
         dataset.close()
 
