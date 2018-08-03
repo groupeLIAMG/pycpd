@@ -695,7 +695,7 @@ def find_beta(dz, Phi_exp, kh, beta0, zt=1.0, C=0, wlf=False, method='fmin', lb=
 
     Returns
     -------
-        beta, misfit
+        beta, misfit (l-2 norm)
     '''
     if wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
@@ -748,7 +748,7 @@ def find_zt(dz, Phi_exp, kh, beta, zt0, C=0, wlf=False, method='fmin', lb=[], ub
 
     Returns
     -------
-       zt, misfit
+       zt, misfit (l-2 norm)
     '''
     if wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
@@ -801,7 +801,7 @@ def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False, method='fmin', lb=[], ub=[
 
     Returns
     -------
-       dz, misfit
+       dz, misfit (l-2 norm)
     '''
     if wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
@@ -854,7 +854,7 @@ def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False, method='fmin', lb=[], ub=[]
 
     Returns
     -------
-       C, misfit
+       C, misfit (l-2 norm)
     '''
     if wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
@@ -908,7 +908,7 @@ def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False, method='fmin'
 
     Returns
     -------
-        beta, zt, dz, C, misfit
+        beta, zt, dz, C, misfit (l-2 norm)
     '''
     if wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
@@ -972,7 +972,7 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb
 
     Returns
     -------
-        beta, zt, C, misfit
+        beta, zt, C, misfit (l-2 norm)
     '''
     if wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
@@ -1076,7 +1076,7 @@ def find_beta_zt_C_bound(Phi_exp, kh, beta, zt, C, zb, wlf=False):
 
     Returns
     -------
-        beta, zt, C, misfit
+        beta, zt, C, misfit (l-2 norm)
     '''
     beta0, beta1, beta2 = beta
     zt0, zt1, zt2 = zt
@@ -1127,7 +1127,7 @@ def find_beta_dz_C(Phi_exp, kh, beta0, dz0, C0, zt=1.0, wlf=False, method='fmin'
 
     Returns
     -------
-        beta, dz, C, misfit
+        beta, dz, C, misfit (l-2 norm)
     '''
     if wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
@@ -1188,7 +1188,7 @@ def find_beta_dz_zt(Phi_exp, kh, beta0, dz0, zt0, C, wlf=False, method='fmin', l
 
     Returns
     -------
-        beta, dz, zt, misfit
+        beta, dz, zt, misfit (l-2 norm)
     '''
     if wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
@@ -1248,7 +1248,7 @@ def find_beta_zt(dz, Phi_exp, kh, beta0, zt0, C=0, wlf=False, method='fmin', lb=
 
     Returns
     -------
-        beta, zt, misfit
+        beta, zt, misfit (l-2 norm)
     '''
     if wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
@@ -1305,7 +1305,7 @@ def find_beta_C(dz, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False, method='fmin', lb
 
     Returns
     -------
-        beta, C, misfit
+        beta, C, misfit (l-2 norm)
     '''
     if wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
@@ -1361,7 +1361,7 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
 
     Returns
     -------
-        dz, zt, misfit
+        dz, zt, misfit (l-2 norm)
     '''
     if wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
@@ -1418,7 +1418,7 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
 #
 #     Returns
 #     -------
-#         zb, misfit
+#         zb, misfit (l-2 norm)
 #     '''
 #     if wlf:
 #         w = np.linspace(1.5, 0.5, Phi_exp.size)
@@ -1469,7 +1469,7 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
 
     Returns
     -------
-        dz, zt, C, misfit
+        dz, zt, C, misfit (l-2 norm)
     '''
     if wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
@@ -1577,7 +1577,7 @@ def find_zt_C(Phi_exp, kh, beta, dz, zt0, C0, wlf=False, method='fmin', lb=[], u
 
     Returns
     -------
-        zt, C, misfit
+        zt, C, misfit (l-2 norm)
     '''
     if wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
