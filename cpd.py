@@ -40,7 +40,7 @@ from mem import lim_malik
 import radon
 import spectrum
 
-dz_lb = 3.0
+dz_lb = 5.0
 dz_ub = 80.0
 zt_lb = 0.0
 zt_ub = 5.0
@@ -1024,18 +1024,18 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb
         if len(ub) == 0:
             ub = np.array([beta_ub, zt_ub, C_ub])
 
-        if beta_opt < beta_lb:
-            beta_opt = beta_lb
-        if beta_opt > beta_ub:
-            beta_opt = beta_ub
-        if zt_opt < zt_lb:
-            zt_opt = zt_lb
-        if zt_opt > zt_ub:
-            zt_opt = zt_ub
-        if C_opt < C_lb:
-            C_opt = C_lb
-        if C_opt > C_ub:
-            C_opt = C_ub
+        if beta_opt < lb[0]:
+            beta_opt = lb[0]
+        if beta_opt > ub[0]:
+            beta_opt = ub[0]
+        if zt_opt < lb[1]:
+            zt_opt = lb[1]
+        if zt_opt > ub[1]:
+            zt_opt = ub[1]
+        if C_opt < lb[2]:
+            C_opt = lb[2]
+        if C_opt > ub[2]:
+            C_opt = ub[2]
 
         res = least_squares(func, x0=np.array([beta_opt, zt_opt, C_opt]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz))
         beta_opt = res.x[0]
@@ -1522,18 +1522,18 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
         if len(ub) == 0:
             ub = np.array([dz_ub, zt_ub, C_ub])
 
-        if dz_opt < dz_lb:
-            dz_opt = dz_lb
-        if dz_opt > dz_ub:
-            dz_opt = dz_ub
-        if zt_opt < zt_lb:
-            zt_opt = zt_lb
-        if zt_opt > zt_ub:
-            zt_opt = zt_ub
-        if C_opt < C_lb:
-            C_opt = C_lb
-        if C_opt > C_ub:
-            C_opt = C_ub
+        if dz_opt < lb[0]:
+            dz_opt = lb[0]
+        if dz_opt > ub[0]:
+            dz_opt = ub[0]
+        if zt_opt < lb[1]:
+            zt_opt = lb[1]
+        if zt_opt > ub[1]:
+            zt_opt = ub[1]
+        if C_opt < lb[2]:
+            C_opt = lb[2]
+        if C_opt > ub[2]:
+            C_opt = ub[2]
 
         res = least_squares(func, x0=np.array([dz_opt, zt_opt, C_opt]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta))
         dz_opt = res.x[0]
