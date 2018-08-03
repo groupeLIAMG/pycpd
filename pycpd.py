@@ -330,6 +330,10 @@ class SpectrumParams(QGroupBox):
         self.taperwin.setCurrentIndex(0)
         self.winsize = QLineEdit(locale.toString(500.0, format='f', precision=1))
         self.winsize.setValidator(QDoubleValidator())
+        self.cdecim = QLineEdit('0')
+        self.cdecim.setValidator(QIntValidator())
+        self.kcut = QLineEdit(locale.toString(0.0, format='f', precision=1))
+        self.kcut.setValidator(QDoubleValidator())
 #        self.winsize.setMinimumWidth(75)
         self.log = QCheckBox('Log scale')
         self.log.setChecked(True)
@@ -356,15 +360,22 @@ class SpectrumParams(QGroupBox):
         gl.addWidget(self.winsize, 1, 1)
         gl.addWidget(QLabel('Detrending'), 1, 2)
         gl.addWidget(self.detrend, 1, 3)
-        gl.addWidget(QLabel('Taper'), 1, 4)
+        taperl = QLabel('Taper')
+        taperl.setAlignment(Qt.AlignRight)
+        gl.addWidget(taperl, 1, 4)
         gl.addWidget(self.taperwin, 1, 5)
         gl.addWidget(self.log, 1, 6)
         
-        gl.addWidget(self.estiml, 2, 0)
-        gl.addWidget(self.estimator, 2, 1, 1, 3)
-        gl.addWidget(self.memest, 2, 4)
-        gl.addWidget(self.orderl, 2, 5)
-        gl.addWidget(self.order, 2, 6)
+        gl.addWidget(QLabel('Casc. decimation (npts)'), 2, 0, 1, 2)
+        gl.addWidget(self.cdecim, 2, 2)
+        gl.addWidget(QLabel('High-k cutoff (rad/km)'), 2, 4, 1, 2)
+        gl.addWidget(self.kcut, 2, 6)
+
+        gl.addWidget(self.estiml, 3, 0)
+        gl.addWidget(self.estimator, 3, 1, 1, 3)
+        gl.addWidget(self.memest, 3, 4)
+        gl.addWidget(self.orderl, 3, 5)
+        gl.addWidget(self.order, 3, 6)
         
         self.setLayout(gl)
         
@@ -836,6 +847,8 @@ class PyCPD(QMainWindow):
         self.sp.estimator.currentIndexChanged.connect(self.computeSpectrum)
         self.sp.memest.currentIndexChanged.connect(self.computeSpectrum)
         self.sp.order.editingFinished.connect(self.computeSpectrum)
+        self.sp.cdecim.editingFinished.connect(self.computeSpectrum)
+        self.sp.kcut.editingFinished.connect(self.computeSpectrum)
         
         self.lach.D.editingFinished.connect(self.plotLachenbruch)
         self.lach.override.stateChanged.connect(self.plotLachenbruch)
@@ -1007,11 +1020,13 @@ class PyCPD(QMainWindow):
                 mem = self.sp.estimator.currentIndex()
                 memest = self.sp.memest.currentIndex()
                 order = int(self.sp.order.text())
+                cdecim = int(self.sp.cdecim.text())
+                kcut = locale.toDouble(self.sp.kcut.text())[0]
             
                 if self.sp.type.currentIndex() == 0:
                     f.S_r, f.k_r, f.E2, _ = self.grid.getRadialSpectrum(f.x, f.y, ww, win, detrend,
                                                                          mem=mem, memest=memest,
-                                                                         order=order)
+                                                                         order=order, kcut=kcut, cdecim=cdecim)
                 else:
                     f.S_r, f.k_r, f.theta, _ = self.grid.getAzimuthalSpectrum(f.x, f.y, ww, win,
                                                                               detrend, memest=memest,

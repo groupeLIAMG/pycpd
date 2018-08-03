@@ -424,7 +424,7 @@ class Grid2d:
 
 
     def getRadialSpectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scalFac=0.001,
-                           mem=0, memest=0, order=10):
+                           mem=0, memest=0, order=10, kcut=0.0, cdecim=0):
         """
         Compute radial spectrum for point at (xc,yc) for square window of
         width equal to ww
@@ -450,12 +450,16 @@ class Grid2d:
                      If 0, use FFT (the default)
                      if 1, use ARMA model
         order    : order of ARMA estimator
-
+        kcut     : wavenumber value at which to troncate high part of spectrum
+                     If 0, do not troncate (the default)
+        cdecim   : cascade decimation, value is maximum number of points to skip
+                   (default is 0 : decimation not performed)
+                
         Returns
         -------
         S       : Radial spectrum
         k       : wavenumber [rad/km]
-        E2      : variance of S
+        E2      : 95% confidence interval
         flagPad : True if zero padding was applied
         """
 
@@ -509,7 +513,7 @@ class Grid2d:
                 rr = 2.0*np.log(TF2D[ind])
                 S[n] = np.mean(rr)
                 k[n] = np.mean(kk[ind])
-                E2[n] = np.std(rr) / np.sqrt( rr.size )
+                E2[n] = 1.96 * np.std(rr) / np.sqrt( rr.size )
 
         elif mem == 1:
             # method of Srinivasa et al. 1992
@@ -560,10 +564,32 @@ class Grid2d:
                 rr = 2.0*np.log(Stmp[ind])
                 S[n] = np.mean(rr)
                 k[n] = np.mean(kk[ind])
-                E2[n] = np.std(rr) / np.sqrt( rr.size )
+                E2[n] = 1.96 * np.std(rr) / np.sqrt( rr.size )
 
         else:
             raise ValueError('Method undefined')
+        
+        if kcut != 0.0:
+            ind = k<kcut
+            S = S[ind]
+            k = k[ind]
+            E2 = E2[ind]            
+        
+        if cdecim > 0:
+            N = k.size
+            ind = np.zeros(N, np.bool_)
+            # \sum_{s=0}^{s_{max}} n(s+1) & < N \\
+            # i_0 + \sum_{m=0}^{s_{max}} n(s+1) & = N
+            n = int( N / np.sum(np.arange(cdecim+2)))
+            i0 = N - np.sum(n*(np.arange(cdecim+1)+1))
+            ind[:i0] = True
+            for s in range(cdecim+1):
+                i0 += n*s
+                for nn in range(n):
+                    ind[i0+(nn+1)*(s+1) - 1] = True
+            S = S[ind]
+            k = k[ind]
+            E2 = E2[ind]
 
         return S, k, E2, flagPad
 
@@ -1821,8 +1847,8 @@ if __name__ == '__main__':
     print(T-Tz, T-Tz1)
 
     testFFTMA = False
-    testSpec = False
-    testAz = True
+    testSpec = True
+    testAz = False
 
     if testFFTMA:
         grid = Grid2d('')
@@ -1842,9 +1868,10 @@ if __name__ == '__main__':
 
     if testSpec:
         g = Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
-        g.readnc('/Users/giroux/JacquesCloud/Projets/CDP/NAmag/Qc_lcc_k.nc')
+        g.readnc('/Users/giroux/JacquesCloud/Projets/CPD/NAmag/Qc_lcc_k.nc')
 
-        S, k, E2, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0, tukey, detrend=1)
+        S, k, E2, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0,
+                                             tukey, detrend=1, cdecim=5, kcut=2.0)
 
         S2, k2, E22, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0, tukey)
 
@@ -1853,10 +1880,11 @@ if __name__ == '__main__':
 
         Phi_exp = bouligand4(beta1, zt, dz, k, C1)
 
-        S3, k3, E23, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 250000.0, tukey, order=5, mem=1)
+        S3, k3, E23, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 250000.0,
+                                                tukey, order=5, mem=1)
 
         plt.figure()
-        plt.semilogx(k, S, k2, S2, k3, S3, k, Phi_exp)
+        plt.semilogx(k, S, 'o', k2, S2, '-', k3, S3, ':', k, Phi_exp, '*')
         plt.legend(('1','2','3', '4'))
         plt.show()
 
@@ -1864,7 +1892,7 @@ if __name__ == '__main__':
 
     if testAz:
         g = Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
-        g.readnc('/Users/giroux/JacquesCloud/Projets/CDP/NAmag/Qc_lcc_k.nc')
+        g.readnc('/Users/giroux/JacquesCloud/Projets/CPD/NAmag/Qc_lcc_k.nc')
 
         S, k, theta, flag = g.getAzimuthalSpectrum(1606000.0, -1963000.0, 500000.0, tukey, 1)
 
