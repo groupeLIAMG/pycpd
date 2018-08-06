@@ -424,7 +424,7 @@ class Grid2d:
 
 
     def getRadialSpectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scalFac=0.001,
-                           mem=0, memest=0, order=10, kcut=0.0, cdecim=0):
+                           mem=0, memest=0, order=10, kcut=0.0, cdecim=0, logspace=0):
         """
         Compute radial spectrum for point at (xc,yc) for square window of
         width equal to ww
@@ -453,7 +453,10 @@ class Grid2d:
         kcut     : wavenumber value at which to troncate high part of spectrum
                      If 0, do not troncate (the default)
         cdecim   : cascade decimation, value is maximum number of points to skip
-                   (default is 0 : decimation not performed)
+                     (default is 0 : decimation not performed)
+        logspace : interpolate (linearly) spectrum in logspace
+                     value is number of points in spectrum
+                     (0 by default, no interpolation)
                 
         Returns
         -------
@@ -469,6 +472,9 @@ class Grid2d:
 
         if self.dx != self.dy:
             raise RuntimeError('Grid cell size should be equal in x and y')
+            
+        if logspace > 0 and cdecim > 0:
+            raise ValueError('Parameters logspace and cdecim are mutually exclusive')
 
         data, nw, flagPad = self._getSubgrid(xc, yc, ww, detrend)
 
@@ -573,7 +579,13 @@ class Grid2d:
             ind = k<kcut
             S = S[ind]
             k = k[ind]
-            E2 = E2[ind]            
+            E2 = E2[ind]
+
+        if logspace > 0:
+            kk = np.logspace(np.log10(k[0]), np.log10(k[-1]), logspace)
+            S = np.interp(kk, k, S)
+            E2 = np.interp(kk, k, E2)
+            k = kk
         
         if cdecim > 0:
             N = k.size
@@ -1873,7 +1885,7 @@ if __name__ == '__main__':
         S, k, E2, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0,
                                              tukey, detrend=1, cdecim=5, kcut=2.0)
 
-        S2, k2, E22, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0, tukey)
+        S2, k2, E22, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0, tukey, logspace=50)
 
 
         beta1,C1, misfit = find_beta_C(dz+zt, S, k, 3.0, 25.0)
@@ -1884,7 +1896,7 @@ if __name__ == '__main__':
                                                 tukey, order=5, mem=1)
 
         plt.figure()
-        plt.semilogx(k, S, 'o', k2, S2, '-', k3, S3, ':', k, Phi_exp, '*')
+        plt.semilogx(k, S, 'o', k2, S2, 'o-', k3, S3, ':', k, Phi_exp, '*')
         plt.legend(('1','2','3', '4'))
         plt.show()
 

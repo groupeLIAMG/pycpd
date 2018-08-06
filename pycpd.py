@@ -337,6 +337,12 @@ class SpectrumParams(QGroupBox):
 #        self.winsize.setMinimumWidth(75)
         self.log = QCheckBox('Log scale')
         self.log.setChecked(True)
+        self.log.setToolTip('Display spectrum in log scale')
+        self.lspace_cbox = QCheckBox('Interp. in log space')
+        self.lspace_cbox.setChecked(False)
+        self.lspace_edit = QLineEdit('50')
+        self.lspace_edit.setValidator(QIntValidator())
+        self.lspace_edit.setToolTip('Number of points for interpolation')
         
         self.estiml = QLabel('Estimator')
         self.estimator = QComboBox()
@@ -356,6 +362,8 @@ class SpectrumParams(QGroupBox):
         
         gl = QGridLayout()
         gl.addWidget(self.type, 0, 0, 1, 2)
+        gl.addWidget(self.lspace_cbox, 0, 4, 1, 2)
+        gl.addWidget(self.lspace_edit, 0, 6)
         gl.addWidget(QLabel('Size (km)'), 1, 0)
         gl.addWidget(self.winsize, 1, 1)
         gl.addWidget(QLabel('Detrending'), 1, 2)
@@ -798,9 +806,9 @@ class PyCPD(QMainWindow):
         mapctrl.setLayout(mcl)
         
         self.splot = SpectrumCanvas(self, width=5, height=4, dpi=100)
-        self.splot.setMinimumSize(500,300)
+        self.splot.setMinimumSize(500,450)
         self.lachplot = LachenbruchCanvas(self, width=5, height=4, dpi=100)
-        self.lachplot.setMinimumSize(500,300)
+        self.lachplot.setMinimumSize(500,450)
         
         self.plots = QTabWidget()
         self.plots.addTab(self.splot, 'Spectrum')
@@ -838,7 +846,6 @@ class PyCPD(QMainWindow):
         self.mp.fit.clicked.connect(self.fitSpectrum)
         self.mp.lfc.stateChanged.connect(self.updateSpectrum)
 
-        
         self.sp.type.currentIndexChanged.connect(self.computeSpectrum)
         self.sp.detrend.currentIndexChanged.connect(self.computeSpectrum)
         self.sp.log.stateChanged.connect(self.updateSpectrum)
@@ -849,6 +856,8 @@ class PyCPD(QMainWindow):
         self.sp.order.editingFinished.connect(self.computeSpectrum)
         self.sp.cdecim.editingFinished.connect(self.computeSpectrum)
         self.sp.kcut.editingFinished.connect(self.computeSpectrum)
+        self.sp.lspace_cbox.stateChanged.connect(self.computeSpectrum)
+        self.sp.lspace_edit.editingFinished.connect(self.computeSpectrum)
         
         self.lach.D.editingFinished.connect(self.plotLachenbruch)
         self.lach.override.stateChanged.connect(self.plotLachenbruch)
@@ -1022,11 +1031,16 @@ class PyCPD(QMainWindow):
                 order = int(self.sp.order.text())
                 cdecim = int(self.sp.cdecim.text())
                 kcut = locale.toDouble(self.sp.kcut.text())[0]
+                if self.sp.lspace_cbox.isChecked():
+                    logspace = int(self.sp.lspace_edit.text())
+                else:
+                    logspace = 0
             
                 if self.sp.type.currentIndex() == 0:
                     f.S_r, f.k_r, f.E2, _ = self.grid.getRadialSpectrum(f.x, f.y, ww, win, detrend,
                                                                          mem=mem, memest=memest,
-                                                                         order=order, kcut=kcut, cdecim=cdecim)
+                                                                         order=order, kcut=kcut,
+                                                                         cdecim=cdecim, logspace=logspace)
                 else:
                     f.S_r, f.k_r, f.theta, _ = self.grid.getAzimuthalSpectrum(f.x, f.y, ww, win,
                                                                               detrend, memest=memest,
