@@ -29,6 +29,7 @@ import numpy as np
 from scipy.special import gamma, kv, lambertw
 from scipy.optimize import fmin, fminbound, fmin_cobyla, least_squares
 from scipy.signal import tukey
+from scipy.linalg import lstsq
 import pyproj
 import netCDF4
 
@@ -403,10 +404,10 @@ class Grid2d:
 
         if detrend == 1:
             # remove linear trend
-            x,y = np.meshgrid(np.arange(data.shape[1]),np.arange(data.shape[0]))
+            x,y = np.meshgrid(np.arange(data.shape[1]), np.arange(data.shape[0]))
 
             A = np.column_stack((x.flatten(), y.flatten(), np.ones(x.size)))
-            c, resid, rank, sigma = np.linalg.lstsq(A,data.flatten())
+            c, resid, rank, sigma = lstsq(A, data.flatten())
 
             p = np.dot(A, c)
             for n in range(data.size):
@@ -457,7 +458,7 @@ class Grid2d:
         logspace : interpolate (linearly) spectrum in logspace
                      value is number of points in spectrum
                      (0 by default, no interpolation)
-                
+
         Returns
         -------
         S       : Radial spectrum
@@ -472,7 +473,7 @@ class Grid2d:
 
         if self.dx != self.dy:
             raise RuntimeError('Grid cell size should be equal in x and y')
-            
+
         if logspace > 0 and cdecim > 0:
             raise ValueError('Parameters logspace and cdecim are mutually exclusive')
 
@@ -574,7 +575,7 @@ class Grid2d:
 
         else:
             raise ValueError('Method undefined')
-        
+
         if kcut != 0.0:
             ind = k<kcut
             S = S[ind]
@@ -586,7 +587,7 @@ class Grid2d:
             S = np.interp(kk, k, S)
             E2 = np.interp(kk, k, E2)
             k = kk
-        
+
         if cdecim > 0:
             N = k.size
             ind = np.zeros(N, np.bool_)
@@ -1763,7 +1764,7 @@ def find_zb_okubo(S, k, k_cut):
     x = k[ind]
     y = S[ind]
     A = np.vstack([x, np.ones(len(x))]).T
-    zt, c = np.linalg.lstsq(A, y)[0]
+    zt, c = lstsq(A, y)[0]
 
     ind = np.logical_not(ind)
 
@@ -1771,7 +1772,7 @@ def find_zb_okubo(S, k, k_cut):
     G = np.log(np.exp(S[ind])/(x*x))
     y = G
     A = np.vstack([x, np.ones(len(x))]).T
-    zo, c = np.linalg.lstsq(A, y)[0]
+    zo, c = lstsq(A, y)[0]
     zo = -zo;
     zt = -zt
     return 2*zo - zt
