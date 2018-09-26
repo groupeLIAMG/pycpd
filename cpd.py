@@ -93,7 +93,8 @@ class Forage:
         self.zb_sim = []             # m
         self.S_r = []                # Radial spectrum
         self.k_r =[]                 # wavenumber of Spectrum
-        self.E2 = []
+        self.std_r = []              # standard deviation of spectrum samples in radial bin
+        self.ns_r = []               # number of spectrum samples in radial bin
         self.pad = False
         self.beta_sim = []
         self.zt_sim = []
@@ -463,7 +464,8 @@ class Grid2d:
         -------
         S       : Radial spectrum
         k       : wavenumber [rad/km]
-        E2      : 95% confidence interval
+        std     : Standard deviation of samples in radial bin
+        ns      : Number of samples in radial bin
         flagPad : True if zero padding was applied
         """
 
@@ -509,7 +511,8 @@ class Grid2d:
             nbins = kbins.size-1
             S = np.zeros((nbins,))
             k = np.zeros((nbins,))
-            E2 = np.zeros((nbins,))
+            std = np.zeros((nbins,))
+            ns = np.zeros((nbins,))
 
             i0 = int((nw-1)/2)
             iy,ix= np.meshgrid(np.arange(nw), np.arange(nw))
@@ -520,17 +523,19 @@ class Grid2d:
                 rr = 2.0*np.log(TF2D[ind])
                 S[n] = np.mean(rr)
                 k[n] = np.mean(kk[ind])
-                E2[n] = 1.96 * np.std(rr) / np.sqrt( rr.size )
+                std[n] = np.std(rr)
+                ns[n] = rr.size
 
         elif mem == 1:
             # method of Srinivasa et al. 1992
             k = np.arange(dk, dk*nw/2, dk)
             S = np.zeros((k.size,))
-            E2 = np.zeros((k.size,))
+            std = np.zeros((k.size,))
 
             theta = np.pi*np.arange(0.0,180.0,5.0)/180.0
             sinogram = radon.radon2d(data, theta)
             SS = np.zeros((theta.size,k.size))
+            ns = np.zeros((k.size,)) + theta.size
 
             # apply taper on individual directions
             if taper == None:
@@ -551,7 +556,7 @@ class Grid2d:
                 SS[n,:] = 2.0*np.log( PSD[1:k.size+1] )
 
             S = np.mean(SS, axis=0)
-            E2 = np.std(SS, axis=0)
+            std = np.std(SS, axis=0)
 
         elif mem == 2:
             Stmp = np.abs( lim_malik(data*taper_val) )
@@ -560,18 +565,19 @@ class Grid2d:
             nbins = kbins.size-1
             S = np.zeros((nbins,))
             k = np.zeros((nbins,))
-            E2 = np.zeros((nbins,))
+            std = np.zeros((nbins,))
 
             i0 = int((nw-1)/2)
             iy,ix= np.meshgrid(np.arange(nw), np.arange(nw))
             kk = np.sqrt( ((ix-i0)*dk)**2 + ((iy-i0)*dk)**2 )
 
             for n in range(nbins):
-                ind = np.logical_and( kk>=kbins[n], kk<=kbins[n+1] )
+                ind = np.logical_and( kk>=kbins[n], kk<kbins[n+1] )
                 rr = 2.0*np.log(Stmp[ind])
                 S[n] = np.mean(rr)
                 k[n] = np.mean(kk[ind])
-                E2[n] = 1.96 * np.std(rr) / np.sqrt( rr.size )
+                std[n] = np.std(rr)
+                ns[n] = rr.size
 
         else:
             raise ValueError('Method undefined')
@@ -580,7 +586,7 @@ class Grid2d:
             ind = k<kcut
             S = S[ind]
             k = k[ind]
-            E2 = E2[ind]
+            std = std[ind]
 
         if logspace > 0:
             kk = np.logspace(np.log10(k[0]), np.log10(k[-1]), logspace)
@@ -602,9 +608,10 @@ class Grid2d:
                     ind[i0+(nn+1)*(s+1) - 1] = True
             S = S[ind]
             k = k[ind]
-            E2 = E2[ind]
+            std = std[ind]
+            ns = ns[ind]
 
-        return S, k, E2, flagPad
+        return S, k, std, ns, flagPad
 
 
 
