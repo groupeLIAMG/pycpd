@@ -5,8 +5,7 @@
 Copyright 2017 Bernard Giroux
 
 This file is part of pycpd.
-
-BhTomoPy is free software: you can redistribute it and/or modify
+pycpd is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
@@ -23,6 +22,7 @@ import os
 import shelve
 import sys
 import numpy as np
+from scipy import stats
 import pandas as pd
 from scipy.signal import tukey, hanning
 
@@ -84,14 +84,17 @@ class SpectrumCanvas(MyMplCanvas):
             w = np.linspace(2.0, 1.0, f.k_r.size)
             w /= w.sum()
             el2 = np.linalg.norm(w*(f.S_r-Sm))
+        
+        conf_int = f.std_r*stats.t.ppf(0.95, f.ns_r-1) / np.sqrt(f.ns_r) 
+        
         if self.l1 == None:
             if logscale:
                 self.l1, self.l2 = self.axes.semilogx(f.k_r, f.S_r, f.k_r, Sm)
-                self.l3 = self.axes.fill_between(f.k_r, f.S_r-f.E2, f.S_r+f.E2,
+                self.l3 = self.axes.fill_between(f.k_r, f.S_r-conf_int, f.S_r+conf_int,
                                                  facecolor=[0.12156863, 0.46666667, 0.70588235, 0.2])
             else:
                 self.l1, self.l2 = self.axes.plot(f.k_r, f.S_r, f.k_r, Sm)
-                self.l3 = self.axes.fill_between(f.k_r, f.S_r-f.E2, f.S_r+f.E2,
+                self.l3 = self.axes.fill_between(f.k_r, f.S_r-conf_int, f.S_r+conf_int,
                                                  facecolor=[0.12156863, 0.46666667, 0.70588235, 0.2])
             if lfw:
                 self.t.set_text('L-2 misfit: {0:g} (lfw: {1:g})'.format(el1, el2))
@@ -107,7 +110,7 @@ class SpectrumCanvas(MyMplCanvas):
             self.l1.set_data(f.k_r, f.S_r)
             self.l2.set_data(f.k_r, Sm)
             self.l3.remove()
-            self.l3 = self.axes.fill_between(f.k_r, f.S_r-f.E2, f.S_r+f.E2,
+            self.l3 = self.axes.fill_between(f.k_r, f.S_r-conf_int, f.S_r+conf_int,
                                              facecolor=[0.12156863, 0.46666667, 0.70588235, 0.2])
 
             self.axes.relim()
@@ -1037,10 +1040,11 @@ class PyCPD(QMainWindow):
                     logspace = 0
             
                 if self.sp.type.currentIndex() == 0:
-                    f.S_r, f.k_r, f.E2, _ = self.grid.getRadialSpectrum(f.x, f.y, ww, win, detrend,
-                                                                         mem=mem, memest=memest,
-                                                                         order=order, kcut=kcut,
-                                                                         cdecim=cdecim, logspace=logspace)
+                    f.S_r, f.k_r, f.std_r, f.ns_r, _ = self.grid.getRadialSpectrum(f.x, f.y, ww, win, detrend,
+                                                                                   mem=mem, memest=memest,
+                                                                                   order=order, kcut=kcut,
+                                                                                   cdecim=cdecim, logspace=logspace,
+                                                                                   padding=padding)
                 else:
                     f.S_r, f.k_r, f.theta, _ = self.grid.getAzimuthalSpectrum(f.x, f.y, ww, win,
                                                                               detrend, memest=memest,
