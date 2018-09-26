@@ -426,7 +426,7 @@ class Grid2d:
 
 
     def getRadialSpectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scalFac=0.001,
-                           mem=0, memest=0, order=10, kcut=0.0, cdecim=0, logspace=0):
+                           mem=0, memest=0, order=10, kcut=0.0, cdecim=0, logspace=0, padding=0):
         """
         Compute radial spectrum for point at (xc,yc) for square window of
         width equal to ww
@@ -500,26 +500,35 @@ class Grid2d:
         for n in range(taper_val.shape[0]):
             taper_val[n,:] *= ht
 
-        dx = self.dx * scalFac  # from m to km
-        dk = 2.0*np.pi / (nw-1) / dx
+        nfft = data.shape
+        if padding > 0:
+            nfft = (nfft[0] * (padding+1), nfft[1] * (padding+1))
 
+        dx = self.dx * scalFac  # from m to km
+        dk0 = 2.0*np.pi / (nw-1) / dx   # before padding
+        dk = 2.0*np.pi / (nfft[0]-1) / dx
+        
         if mem == 0:
-            TF2D = np.abs(np.fft.fft2(data*taper_val))
+            TF2D = np.abs(np.fft.fft2(data*taper_val, s=nfft))
             TF2D = np.fft.fftshift(TF2D)
 
-            kbins = np.arange(dk, dk*nw/2, dk)
+            if logspace == 0:
+                kbins = np.arange(dk0, dk0*nw/2, dk0)
+            else:
+                kbins = np.logspace(np.log10(dk0), np.log10(dk0*nw/2), logspace)
+            
             nbins = kbins.size-1
             S = np.zeros((nbins,))
             k = np.zeros((nbins,))
             std = np.zeros((nbins,))
             ns = np.zeros((nbins,))
 
-            i0 = int((nw-1)/2)
-            iy,ix= np.meshgrid(np.arange(nw), np.arange(nw))
+            i0 = int((nfft[0]-1)/2)
+            iy,ix= np.meshgrid(np.arange(nfft[0]), np.arange(nfft[0]))
             kk = np.sqrt( ((ix-i0)*dk)**2 + ((iy-i0)*dk)**2 )
 
             for n in range(nbins):
-                ind = np.logical_and( kk>=kbins[n], kk<=kbins[n+1] )
+                ind = np.logical_and( kk>=kbins[n], kk<kbins[n+1] )
                 rr = 2.0*np.log(TF2D[ind])
                 S[n] = np.mean(rr)
                 k[n] = np.mean(kk[ind])
@@ -587,12 +596,7 @@ class Grid2d:
             S = S[ind]
             k = k[ind]
             std = std[ind]
-
-        if logspace > 0:
-            kk = np.logspace(np.log10(k[0]), np.log10(k[-1]), logspace)
-            S = np.interp(kk, k, S)
-            E2 = np.interp(kk, k, E2)
-            k = kk
+            ns = ns[ind]
 
         if cdecim > 0:
             N = k.size
@@ -1784,6 +1788,7 @@ def find_zb_okubo(S, k, k_cut):
     zt = -zt
     return 2*zo - zt
 
+
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
@@ -1890,22 +1895,41 @@ if __name__ == '__main__':
         g = Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
         g.readnc('/Users/giroux/JacquesCloud/Projets/CPD/NAmag/Qc_lcc_k.nc')
 
-        S, k, E2, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0,
-                                             tukey, detrend=1, cdecim=5, kcut=2.0)
+#         S, k, std, ns, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0,
+#                                              tukey, detrend=1, cdecim=5, kcut=2.0)
 
-        S2, k2, E22, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0, tukey, logspace=50)
+        S, k, std, ns, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0,
+                                             tukey, detrend=1)
+
+        S2, k2, std2, ns2, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0, tukey,
+                                                detrend=1, logspace=40, padding=2)
 
 
         beta1,C1, misfit = find_beta_C(dz+zt, S, k, 3.0, 25.0)
 
         Phi_exp = bouligand4(beta1, zt, dz, k, C1)
 
-        S3, k3, E23, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 250000.0,
-                                                tukey, order=5, mem=1)
+        S3, k3, std3, ns3, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 250000.0,
+                                                tukey, detrend=1, order=5, mem=1)
 
         plt.figure()
-        plt.semilogx(k, S, 'o', k2, S2, 'o-', k3, S3, ':', k, Phi_exp, '*')
+        plt.semilogx(k, S, '-', k2, S2, 'o', k3, S3, ':', k, Phi_exp, '*')
         plt.legend(('1','2','3', '4'))
+        plt.show(block=False)
+        
+        
+        plt.figure()
+        l1, l2 = plt.semilogx(k, S, '-', k2, S2, 'o')
+        l3 = plt.fill_between(k, S-std, S+std)
+        l3.set_alpha(0.2)
+        l4 = plt.fill_between(k2, S2-std2, S2+std2)
+        l4.set_alpha(0.2)
+        plt.show(block=False)
+
+        plt.figure()
+        plt.loglog(k, ns, '-', k2, ns2, 'o', k3, ns3, ':')
+        plt.legend(('1','2','3'))
+        plt.title('N_s')
         plt.show()
 
         print('Done')

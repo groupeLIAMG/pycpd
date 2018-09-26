@@ -363,6 +363,10 @@ class SpectrumParams(QGroupBox):
         self.order.setVisible(False)
         self.orderl.setVisible(False)
         
+        self.paddingl = QLabel('Zero padding')
+        self.padding = QLineEdit('0')
+        self.padding.setValidator(QIntValidator())
+        
         gl = QGridLayout()
         gl.addWidget(self.type, 0, 0, 1, 2)
         gl.addWidget(self.lspace_cbox, 0, 4, 1, 2)
@@ -387,6 +391,8 @@ class SpectrumParams(QGroupBox):
         gl.addWidget(self.memest, 3, 4)
         gl.addWidget(self.orderl, 3, 5)
         gl.addWidget(self.order, 3, 6)
+        gl.addWidget(self.paddingl, 3, 5)
+        gl.addWidget(self.padding, 3, 6)
         
         self.setLayout(gl)
         
@@ -857,6 +863,7 @@ class PyCPD(QMainWindow):
         self.sp.estimator.currentIndexChanged.connect(self.computeSpectrum)
         self.sp.memest.currentIndexChanged.connect(self.computeSpectrum)
         self.sp.order.editingFinished.connect(self.computeSpectrum)
+        self.sp.padding.editingFinished.connect(self.computeSpectrum)
         self.sp.cdecim.editingFinished.connect(self.computeSpectrum)
         self.sp.kcut.editingFinished.connect(self.computeSpectrum)
         self.sp.lspace_cbox.stateChanged.connect(self.computeSpectrum)
@@ -986,13 +993,19 @@ class PyCPD(QMainWindow):
                 if self.sp.memest.currentIndex() == 1:
                     self.sp.order.setVisible(True)
                     self.sp.orderl.setVisible(True)
+                    self.sp.padding.setVisible(False)
+                    self.sp.paddingl.setVisible(False)
                 else:
                     self.sp.order.setVisible(False)
                     self.sp.orderl.setVisible(False)
+                    self.sp.padding.setVisible(True)
+                    self.sp.paddingl.setVisible(True)
             else:
                 self.sp.memest.setVisible(False)
                 self.sp.order.setVisible(False)
                 self.sp.orderl.setVisible(False)
+                self.sp.padding.setVisible(True)
+                self.sp.paddingl.setVisible(True)
                 
             if self.sp.type.currentIndex() == 1:
                 self.sp.estiml.setVisible(False)
@@ -1032,6 +1045,7 @@ class PyCPD(QMainWindow):
                 mem = self.sp.estimator.currentIndex()
                 memest = self.sp.memest.currentIndex()
                 order = int(self.sp.order.text())
+                padding = int(self.sp.padding.text())
                 cdecim = int(self.sp.cdecim.text())
                 kcut = locale.toDouble(self.sp.kcut.text())[0]
                 if self.sp.lspace_cbox.isChecked():
