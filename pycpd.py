@@ -453,8 +453,10 @@ class MausParams(QGroupBox):
         self.ztc = QCheckBox()
         self.dzc = QCheckBox()
         self.Cc = QCheckBox()
-        self.lfc = QCheckBox('Low frequency weighting')
-        self.lfc.setChecked(False)
+        self.lfc = QComboBox()
+        self.lfc.addItem('No weighting')
+        self.lfc.addItem('Low frequency weighting')
+        self.lfc.addItem('Variance weighting')
         
         self.beta_lb = QLineEdit(locale.toString(1.5, format='f', precision=1))
         self.beta_lb.setEnabled(False)
@@ -845,7 +847,6 @@ class PyCPD(QMainWindow):
         self.mp.Ced.editingFinished.connect(self.updateSpectrum)
         self.mp.fit2step.clicked.connect(self.fitSpec2step)
         self.mp.fit.clicked.connect(self.fitSpectrum)
-        self.mp.lfc.stateChanged.connect(self.updateSpectrum)
 
         self.sp.type.currentIndexChanged.connect(self.computeSpectrum)
         self.sp.detrend.currentIndexChanged.connect(self.computeSpectrum)
@@ -974,7 +975,7 @@ class PyCPD(QMainWindow):
                 zt = locale.toDouble(self.mp.zted.text())[0]
                 dz = locale.toDouble(self.mp.dzed.text())[0]
                 C = locale.toDouble(self.mp.Ced.text())[0]
-                self.splot.plot(f, (beta, zt, dz, C), self.sp.log.isChecked(), self.mp.lfc.isChecked())
+                self.splot.plot(f, (beta, zt, dz, C), self.sp.log.isChecked())
             else:
                 self.splot.plot2D(f, self.sp.log.isChecked())
             
@@ -1020,10 +1021,11 @@ class PyCPD(QMainWindow):
             elif self.forage != None:
                 f = self.forage
             elif self.forages != None:
-                f = self.forages[self.bh.bhlist.currentIndex()]
-
+                index = self.bh.bhlist.currentIndex()
+                f = self.forages[index]
+                
                 self.statusBar().clearMessage()
-                self.statusBar().showMessage('Borehole: '+f.site_name)
+                self.statusBar().showMessage('Borehole no '+str(index)+': '+f.site_name)
                 
             if f != None:
                 ww = 1000.0 * locale.toDouble(self.sp.winsize.text())[0]
@@ -1211,7 +1213,9 @@ class PyCPD(QMainWindow):
             ztc = self.mp.ztc.isChecked()
             dzc = self.mp.dzc.isChecked()
             Cc = self.mp.Cc.isChecked()
-            lfc = self.mp.lfc.isChecked()
+            lfc = self.mp.lfc.currentIndex()
+            if lfc == 2:
+                lfc = f.std_r**2
             
             meth = self.mp.method
             
@@ -1352,7 +1356,10 @@ class PyCPD(QMainWindow):
             zt = locale.toDouble(self.mp.zted.text())[0]
             dz = locale.toDouble(self.mp.dzed.text())[0]
             C = locale.toDouble(self.mp.Ced.text())[0]
-            lfc = self.mp.lfc.isChecked()
+            
+            lfc = self.mp.lfc.currentIndex()
+            if lfc == 2:
+                lfc = f.std_r**2
             
             meth = self.mp.method
 
