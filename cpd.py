@@ -615,9 +615,13 @@ class Grid2d:
             std = std[ind]
             ns = ns[ind]
 
+        ind = np.isfinite(k)
+        S = S[ind]
+        k = k[ind]
+        std = std[ind]
+        ns = ns[ind]
+
         return S, k, std, ns, flagPad
-
-
 
     def getAzimuthalSpectrum(self, xc, yc, ww, taper=np.hanning, detrend=0,
                              scalFac=0.001, dtheta=5.0, memest=0, order=10):
