@@ -73,18 +73,16 @@ class SpectrumCanvas(MyMplCanvas):
         self.t = None
         self.qm = None     # Quad mesh returned by pcolormesh
         
-    def plot(self, f, mauspar, logscale, lfw):
+    def plot(self, f, mauspar, logscale):
         if self.qm != None:
             self.axes.cla()
             self.qm = None
         (beta, zt, dz, C) = mauspar
         Sm = cpd.bouligand4(beta, zt, dz, f.k_r, C)
-        el1 = np.linalg.norm(f.S_r-Sm)
-        if lfw:
-            w = np.linspace(2.0, 1.0, f.k_r.size)
-            w /= w.sum()
-            el2 = np.linalg.norm(w*(f.S_r-Sm))
+        w = 1.0 #/ (f.std_r**2)
         
+        el1 = np.sqrt(1.0/f.S_r.size * np.sum((w*((f.S_r - Sm)**2))))
+
         conf_int = f.std_r*stats.t.ppf(0.95, f.ns_r-1) / np.sqrt(f.ns_r) 
         
         if self.l1 == None:
@@ -96,10 +94,7 @@ class SpectrumCanvas(MyMplCanvas):
                 self.l1, self.l2 = self.axes.plot(f.k_r, f.S_r, f.k_r, Sm)
                 self.l3 = self.axes.fill_between(f.k_r, f.S_r-conf_int, f.S_r+conf_int,
                                                  facecolor=[0.12156863, 0.46666667, 0.70588235, 0.2])
-            if lfw:
-                self.t.set_text('L-2 misfit: {0:g} (lfw: {1:g})'.format(el1, el2))
-            else:
-                self.t = self.axes.set_title('L-2 misfit: {0:g}'.format(el1))
+            self.t = self.axes.set_title('Normalized RMS misfit: {0:g}'.format(el1))
             self.axes.set_xlabel('Wavenumber (rad/km)')
             self.axes.set_ylabel('Radial Spectrum')
         else:
@@ -116,10 +111,7 @@ class SpectrumCanvas(MyMplCanvas):
             self.axes.relim()
             self.axes.autoscale_view()
             
-            if lfw:
-                self.t.set_text('L-2 misfit: {0:g} (lfw: {1:g})'.format(el1, el2))
-            else:
-                self.t.set_text('L-2 misfit: {0:g}'.format(el1))
+            self.t.set_text('Normalized RMS misfit: {0:g}'.format(el1))
                  
         self.draw()
     
