@@ -56,6 +56,7 @@ class Point:
         self.x = x
         self.y = y
 
+
 class Polygon:
     def __init__(self):
         self.pts = []
@@ -74,7 +75,6 @@ class Polygon:
                 test = not test
             j = i
         return test
-
 
 
 class Forage:
@@ -156,6 +156,7 @@ def proj4string2dict(proj4string):
     if a != None and b != None:
         params['rsphere'] = (a,b)
     return params
+
 
 class Grid2d:
     def __init__(self, proj4string=''):
@@ -507,7 +508,7 @@ class Grid2d:
         dx = self.dx * scalFac  # from m to km
         dk0 = 2.0*np.pi / (nw-1) / dx   # before padding
         dk = 2.0*np.pi / (nfft[0]-1) / dx
-        
+
         if mem == 0:
             TF2D = np.abs(np.fft.fft2(data*taper_val, s=nfft))
             TF2D = np.fft.fftshift(TF2D)
@@ -516,7 +517,7 @@ class Grid2d:
                 kbins = np.arange(dk0, dk0*nw/2, dk0)
             else:
                 kbins = np.logspace(np.log10(dk0), np.log10(dk0*nw/2), logspace)
-            
+
             nbins = kbins.size-1
             S = np.zeros((nbins,))
             k = np.zeros((nbins,))
@@ -749,15 +750,18 @@ def find_beta(dz, Phi_exp, kh, beta0, zt=1.0, C=0, wlf=False, method='fmin', lb=
 
     Returns
     -------
-        beta, misfit (l-2 norm)
+        beta, Normalized RMS misfit
     '''
-    if wlf:
+    if not np.isscalar(wlf):
+        # wlf must be array of size Phi_exp
+        w = 1.0 / wlf
+    elif wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
     def func(beta, dz, Phi_exp, zt, kh, C):
-        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
         xopt = fmin(func, x0=beta0, args=(dz, Phi_exp, zt, kh, C), full_output=True, disp=False)
@@ -776,9 +780,6 @@ def find_beta(dz, Phi_exp, kh, beta0, zt=1.0, C=0, wlf=False, method='fmin', lb=
 
     else:
         raise ValueError('Method undefined')
-
-    if wlf:
-        misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt, dz, kh, C))
 
     return beta_opt, misfit
 
@@ -802,15 +803,18 @@ def find_zt(dz, Phi_exp, kh, beta, zt0, C=0, wlf=False, method='fmin', lb=[], ub
 
     Returns
     -------
-       zt, misfit (l-2 norm)
+       zt, Normalized RMS misfit
     '''
-    if wlf:
+    if not np.isscalar(wlf):
+        # wlf must be array of size Phi_exp
+        w = 1.0 / wlf
+    elif wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
     def func(zt, dz, Phi_exp, beta, kh, C):
-        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
         xopt = fmin(func, x0=zt0, args=(dz, Phi_exp, beta, kh, C), full_output=True, disp=False)
@@ -829,9 +833,6 @@ def find_zt(dz, Phi_exp, kh, beta, zt0, C=0, wlf=False, method='fmin', lb=[], ub
 
     else:
         raise ValueError('Method undefined')
-
-    if wlf:
-        misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, dz, kh, C))
 
     return zt_opt, misfit
 
@@ -855,15 +856,18 @@ def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False, method='fmin', lb=[], ub=[
 
     Returns
     -------
-       dz, misfit (l-2 norm)
+       dz, Normalized RMS misfit
     '''
-    if wlf:
+    if not np.isscalar(wlf):
+        # wlf must be array of size Phi_exp
+        w = 1.0 / wlf
+    elif wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
     def func(dz, zt, Phi_exp, beta, kh, C):
-        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
         xopt = fmin(func, x0=dz0, args=(zt, Phi_exp, beta, kh, C), full_output=True, disp=False)
@@ -882,9 +886,6 @@ def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False, method='fmin', lb=[], ub=[
 
     else:
         raise ValueError('Method undefined')
-
-    if wlf:
-        misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt, dz_opt, kh, C))
 
     return dz_opt, misfit
 
@@ -908,15 +909,18 @@ def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False, method='fmin', lb=[], ub=[]
 
     Returns
     -------
-       C, misfit (l-2 norm)
+       C, Normalized RMS misfit
     '''
-    if wlf:
+    if not np.isscalar(wlf):
+        # wlf must be array of size Phi_exp
+        w = 1.0 / wlf
+    elif wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
     def func(C, zt, Phi_exp, beta, kh, dz):
-        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
         xopt = fmin(func, x0=C0, args=(zt, Phi_exp, beta, kh, dz), full_output=True, disp=False)
@@ -935,9 +939,6 @@ def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False, method='fmin', lb=[], ub=[]
 
     else:
         raise ValueError('Method undefined')
-
-    if wlf:
-        misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt, dz, kh, C_opt))
 
     return C_opt, misfit
 
@@ -962,9 +963,12 @@ def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False, method='fmin'
 
     Returns
     -------
-        beta, zt, dz, C, misfit (l-2 norm)
+        beta, zt, dz, C, Normalized RMS misfit
     '''
-    if wlf:
+    if not np.isscalar(wlf):
+        # wlf must be array of size Phi_exp
+        w = 1.0 / wlf
+    elif wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
@@ -974,7 +978,7 @@ def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False, method='fmin'
         zt = x[1]
         dz = x[2]
         C = x[3]
-        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
         xopt = fmin(func, x0=np.array([beta0, zt0, dz0, C0]), args=(Phi_exp, kh), full_output=True, disp=False)
@@ -1000,9 +1004,6 @@ def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False, method='fmin'
     else:
         raise ValueError('Method undefined')
 
-    if wlf:
-        misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt_opt, dz_opt, kh, C_opt))
-
     return beta_opt, zt_opt, dz_opt, C_opt, misfit
 
 def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb=[], ub=[]):
@@ -1026,18 +1027,22 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb
 
     Returns
     -------
-        beta, zt, C, misfit (l-2 norm)
+        beta, zt, C, Normalized RMS misfit
     '''
-    if wlf:
+    if not np.isscalar(wlf):
+        # wlf must be array of size Phi_exp
+        w = 1.0 / wlf
+    elif wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
     # define function to minimize
+    iN = 1.0 / Phi_exp.size
     def func(x, Phi_exp, kh, dz):
         beta = x[0]
         zt = x[1]
         C = x[2]
-        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+        return np.sqrt(iN * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
         xopt = fmin(func, x0=np.array([beta0, zt0, C0]), args=(Phi_exp, kh, dz), full_output=True, disp=False)
@@ -1108,9 +1113,6 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb
     else:
         raise ValueError('Method undefined')
 
-    if wlf:
-        misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt_opt, dz, kh, C_opt))
-
     return beta_opt, zt_opt, C_opt, misfit
 
 def find_beta_zt_C_bound(Phi_exp, kh, beta, zt, C, zb, wlf=False):
@@ -1130,13 +1132,16 @@ def find_beta_zt_C_bound(Phi_exp, kh, beta, zt, C, zb, wlf=False):
 
     Returns
     -------
-        beta, zt, C, misfit (l-2 norm)
+        beta, zt, C, Normalized RMS misfit
     '''
     beta0, beta1, beta2 = beta
     zt0, zt1, zt2 = zt
     C0, C1, C2 = C
 
-    if wlf:
+    if not np.isscalar(wlf):
+        # wlf must be array of size Phi_exp
+        w = 1.0 / wlf
+    elif wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
@@ -1146,7 +1151,7 @@ def find_beta_zt_C_bound(Phi_exp, kh, beta, zt, C, zb, wlf=False):
         zt = x[1]
         dz = zb-zt
         C = x[2]
-        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     def cons1(x):
         return beta2-x[0], zt2-x[1], C2-x[2]
@@ -1181,9 +1186,12 @@ def find_beta_dz_C(Phi_exp, kh, beta0, dz0, C0, zt=1.0, wlf=False, method='fmin'
 
     Returns
     -------
-        beta, dz, C, misfit (l-2 norm)
+        beta, dz, C, Normalized RMS misfit
     '''
-    if wlf:
+    if not np.isscalar(wlf):
+        # wlf must be array of size Phi_exp
+        w = 1.0 / wlf
+    elif wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
@@ -1192,7 +1200,7 @@ def find_beta_dz_C(Phi_exp, kh, beta0, dz0, C0, zt=1.0, wlf=False, method='fmin'
         beta = x[0]
         dz = x[1]
         C = x[2]
-        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
         xopt = fmin(func, x0=np.array([beta0, dz0, C0]), args=(Phi_exp, kh, zt), full_output=True, disp=False)
@@ -1215,9 +1223,6 @@ def find_beta_dz_C(Phi_exp, kh, beta0, dz0, C0, zt=1.0, wlf=False, method='fmin'
 
     else:
         raise ValueError('Method undefined')
-
-    if wlf:
-        misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt, dz_opt, kh, C_opt))
 
     return beta_opt, dz_opt, C_opt, misfit
 
@@ -1242,9 +1247,12 @@ def find_beta_dz_zt(Phi_exp, kh, beta0, dz0, zt0, C, wlf=False, method='fmin', l
 
     Returns
     -------
-        beta, dz, zt, misfit (l-2 norm)
+        beta, dz, zt, Normalized RMS misfit
     '''
-    if wlf:
+    if not np.isscalar(wlf):
+        # wlf must be array of size Phi_exp
+        w = 1.0 / wlf
+    elif wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
@@ -1253,7 +1261,7 @@ def find_beta_dz_zt(Phi_exp, kh, beta0, dz0, zt0, C, wlf=False, method='fmin', l
         beta = x[0]
         dz = x[1]
         zt = x[2]
-        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
         xopt = fmin(func, x0=np.array([beta0, dz0, zt0]), args=(Phi_exp, kh, C), full_output=True, disp=False)
@@ -1277,9 +1285,6 @@ def find_beta_dz_zt(Phi_exp, kh, beta0, dz0, zt0, C, wlf=False, method='fmin', l
     else:
         raise ValueError('Method undefined')
 
-    if wlf:
-        misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt_opt, dz_opt, kh, C))
-
     return beta_opt, dz_opt, zt_opt, misfit
 
 def find_beta_zt(dz, Phi_exp, kh, beta0, zt0, C=0, wlf=False, method='fmin', lb=[], ub=[]):
@@ -1302,9 +1307,12 @@ def find_beta_zt(dz, Phi_exp, kh, beta0, zt0, C=0, wlf=False, method='fmin', lb=
 
     Returns
     -------
-        beta, zt, misfit (l-2 norm)
+        beta, zt, Normalized RMS misfit
     '''
-    if wlf:
+    if not np.isscalar(wlf):
+        # wlf must be array of size Phi_exp
+        w = 1.0 / wlf
+    elif wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
@@ -1312,7 +1320,7 @@ def find_beta_zt(dz, Phi_exp, kh, beta0, zt0, C=0, wlf=False, method='fmin', lb=
     def func(x, dz, Phi_exp, kh, C):
         beta = x[0]
         zt = x[1]
-        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
         xopt = fmin(func, x0=np.array([beta0, zt0]), args=(dz, Phi_exp, kh, C), full_output=True, disp=False)
@@ -1333,9 +1341,6 @@ def find_beta_zt(dz, Phi_exp, kh, beta0, zt0, C=0, wlf=False, method='fmin', lb=
 
     else:
         raise ValueError('Method undefined')
-
-    if wlf:
-        misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt_opt, dz, kh, C))
 
     return beta_opt, zt_opt, misfit
 
@@ -1359,9 +1364,12 @@ def find_beta_C(dz, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False, method='fmin', lb
 
     Returns
     -------
-        beta, C, misfit (l-2 norm)
+        beta, C, Normalized RMS misfit
     '''
-    if wlf:
+    if not np.isscalar(wlf):
+        # wlf must be array of size Phi_exp
+        w = 1.0 / wlf
+    elif wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
@@ -1369,7 +1377,7 @@ def find_beta_C(dz, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False, method='fmin', lb
     def func(x, dz, Phi_exp, kh, zt):
         beta = x[0]
         C = x[1]
-        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
         xopt = fmin(func, x0=np.array([beta0, C0]), args=(dz, Phi_exp, kh, zt), full_output=True, disp=False)
@@ -1390,9 +1398,6 @@ def find_beta_C(dz, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False, method='fmin', lb
 
     else:
         raise ValueError('Method undefined')
-
-    if wlf:
-        misfit = np.linalg.norm(Phi_exp - bouligand4(beta_opt, zt, dz, kh, C_opt))
 
     return beta_opt, C_opt, misfit
 
@@ -1415,9 +1420,12 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
 
     Returns
     -------
-        dz, zt, misfit (l-2 norm)
+        dz, zt, Normalized RMS misfit
     '''
-    if wlf:
+    if not np.isscalar(wlf):
+        # wlf must be array of size Phi_exp
+        w = 1.0 / wlf
+    elif wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
@@ -1425,7 +1433,7 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
     def func(x, Phi_exp, kh, beta, C):
         dz = x[0]
         zt = x[1]
-        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
         xopt = fmin(func, x0=np.array([dz0, zt0]), args=(Phi_exp, kh, beta, C), disp=False, full_output=True)
@@ -1446,9 +1454,6 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
 
     else:
         raise ValueError('Method undefined')
-
-    if wlf:
-        misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, dz_opt, kh, C))
 
     return dz_opt, zt_opt, misfit
 
@@ -1472,16 +1477,19 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
 #
 #     Returns
 #     -------
-#         zb, misfit (l-2 norm)
+#         zb, Normalized RMS misfit
 #     '''
-#     if wlf:
+#     if not np.isscalar(wlf):
+#         # wlf must be array of size Phi_exp
+#         w = 1.0 / wlf
+#     elif wlf:
 #         w = np.linspace(1.5, 0.5, Phi_exp.size)
 #     else:
 #         w = 1.0
 #     # define function to minimize
 #     def func(zb, beta, Phi_exp, zt, kh, C):
 #         dz = zb - zt
-#         return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+#         return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 #
 #     if method == 'fmin':
 #         xopt = fmin(func, x0=zb0, args=(beta, Phi_exp, zt, kh, C), disp=False, full_output=True)
@@ -1497,9 +1505,6 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
 #         res = least_squares(func, x0=zb0, jac='3-point', bounds=(lb,ub), args=(beta, Phi_exp, zt, kh, C))
 #         zb_opt = res.x[0]
 #         misfit = res.cost
-#
-#     if wlf:
-#         misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt, zb_opt-zt, kh, C))
 #
 #     return zb_opt[0], misfit
 
@@ -1523,9 +1528,12 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
 
     Returns
     -------
-        dz, zt, C, misfit (l-2 norm)
+        dz, zt, C, Normalized RMS misfit
     '''
-    if wlf:
+    if not np.isscalar(wlf):
+        # wlf must be array of size Phi_exp
+        w = 1.0 / wlf
+    elif wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
@@ -1534,7 +1542,7 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
         dz = x[0]
         zt = x[1]
         C = x[2]
-        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
         xopt = fmin(func, x0=np.array([dz0, zt0, C0]), args=(Phi_exp, kh, beta), full_output=True, disp=False)
@@ -1606,9 +1614,6 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
     else:
         raise ValueError('Method undefined')
 
-    if wlf:
-        misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, dz_opt, kh, C_opt))
-
     return dz_opt, zt_opt, C_opt, misfit
 
 def find_zt_C(Phi_exp, kh, beta, dz, zt0, C0, wlf=False, method='fmin', lb=[], ub=[]):
@@ -1631,9 +1636,12 @@ def find_zt_C(Phi_exp, kh, beta, dz, zt0, C0, wlf=False, method='fmin', lb=[], u
 
     Returns
     -------
-        zt, C, misfit (l-2 norm)
+        zt, C, Normalized RMS misfit
     '''
-    if wlf:
+    if not np.isscalar(wlf):
+        # wlf must be array of size Phi_exp
+        w = 1.0 / wlf
+    elif wlf:
         w = np.linspace(1.5, 0.5, Phi_exp.size)
 
     else:
@@ -1642,7 +1650,7 @@ def find_zt_C(Phi_exp, kh, beta, dz, zt0, C0, wlf=False, method='fmin', lb=[], u
     def func(x, Phi_exp, kh, dz, beta):
         zt = x[0]
         C = x[1]
-        return np.linalg.norm(w*(Phi_exp - bouligand4(beta, zt, dz, kh, C)))
+        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
         xopt = fmin(func, x0=np.array([zt0, C0]), args=(Phi_exp, kh, dz, beta), full_output=True, disp=False)
@@ -1663,9 +1671,6 @@ def find_zt_C(Phi_exp, kh, beta, dz, zt0, C0, wlf=False, method='fmin', lb=[], u
 
     else:
         raise ValueError('Method undefined')
-
-    if wlf:
-        misfit = np.linalg.norm(Phi_exp - bouligand4(beta, zt_opt, dz, kh, C_opt))
 
     return zt_opt, C_opt, misfit
 
@@ -1920,8 +1925,8 @@ if __name__ == '__main__':
         plt.semilogx(k, S, '-', k2, S2, 'o', k3, S3, ':', k, Phi_exp, '*')
         plt.legend(('1','2','3', '4'))
         plt.show(block=False)
-        
-        
+
+
         plt.figure()
         l1, l2 = plt.semilogx(k, S, '-', k2, S2, 'o')
         l3 = plt.fill_between(k, S-std, S+std)
