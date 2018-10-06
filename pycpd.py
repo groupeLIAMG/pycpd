@@ -1466,15 +1466,15 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = PyCPD()
     
-    if os.path.isfile('/Users/giroux/JacquesCloud/Projets/CPD/databases/forages.db'):
+    if os.path.isfile('data/forages.db'):
           
-        db = shelve.open('/Users/giroux/JacquesCloud/Projets/CPD/databases/forages','r')
+        db = shelve.open('data/forages','r')
         ex.forages = db['forages']
         db.close()
         ex.bh.setList(ex.forages)
            
         ex.grid = cpd.Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
-        ex.grid.readnc('/Users/giroux/JacquesCloud/Projets/CPD/NAmag/Qc_lcc_k_cut.nc')
+        ex.grid.readnc('data/Qc_lcc_clipped.nc')
         ex.locmap.drawMap(ex.grid)
         ex.locmap.updateBhLoc(ex.forages[0])
         ex.computeSpectrum()

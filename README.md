@@ -28,8 +28,11 @@ Run the following command in the source directory in order to use the maximum en
 ```
 python setup.py build_ext --inplace
 ```
+## Data
 
-## Aeromagnetic Data
+Examples can be found in the data directory.
+
+### Aeromagnetic Data
 
 - Aeromagnetic data should be gridded on a cartesian grid with spatial units in meters
 - Recognized formats are:
@@ -41,9 +44,9 @@ python setup.py build_ext --inplace
 +proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs
 ```
 
-## Borehole Data
+### Borehole Data
 
-Borehole data should be in a csv file with the same header as given in the Global Heat Flow Datababse of the International Heat Flow Commission (http://www.heatflow.und.edu/index2.html).  An example file can be found at http://www.heatflow.und.edu/Global2010.csv. The first lines of this file are:
+Borehole data should be in a csv file with the same header as given in the Global Heat Flow Database of the International Heat Flow Commission (http://www.heatflow.und.edu/index2.html).  An example file can be found at http://www.heatflow.und.edu/Global2010.csv. The first lines of this file are:
 ```
 Data Number,Codes,Site Name,Latitude,Longitude,Elevation,minD,maxD,No. Temps,Gradient,No. Cond.,Conductivity,No.Heat Prod.,Heat Prod.,Heat Flow,No. sites,Year of Pub.,Reference,Comments,,
 1,,SMU-KG2,44.4637,-111.7322,1987,28,66,,81,2,1.88,,,,,1983,Brott_etal1983,Williams_etal1995,,
@@ -51,6 +54,7 @@ Data Number,Codes,Site Name,Latitude,Longitude,Elevation,minD,maxD,No. Temps,Gra
 3,,SMU-SP2,44.3678,-112.1432,1859,25,70,,46,5,1.67,,,,,1983,Brott_etal1983,Brott_etal1983,,
 ```
 
+The script `mk_db.py` can be used to extract the heat flow data for the area corresponding to your aeromagnetic data grid, and store it in a python shelf that pycpd understands.
 
 ## References
 ```
