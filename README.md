@@ -1,7 +1,7 @@
 # pycpd
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](./01_LICENSE.txt)
-[![DOI](https://zenodo.org/badge/89073081.svg)](https://dx.doi.org/10.5281/zenodo.1447153)
+[![DOI](https://zenodo.org/badge/51318634.svg)](https://zenodo.org/badge/latestdoi/51318634)
 
 Interactive data processing and analysis tool to compute the Curie point depth from aeromagnetic data using the method of Bouligand *et al*. (2009)
 
