@@ -255,9 +255,9 @@ class BoreholeData(QGroupBox):
         
         self.bhlist = QComboBox()
         self.down = QPushButton('\u21E6')
-        self.down.setMaximumWidth(30)
+        self.down.setMaximumWidth(35)
         self.up = QPushButton('\u21E8')
-        self.up.setMaximumWidth(30)
+        self.up.setMaximumWidth(35)
 
         self.offshore = QLabel()
         self.zb_sat = QLabel()
