@@ -781,7 +781,7 @@ class PyCPD(QMainWindow):
         
         self.bh = BoreholeData()
         self.locmap = MapCanvas(self, width=5, height=4, dpi=100)
-        self.locmap.setMinimumSize(800, 600)
+        self.locmap.setMinimumSize(800, 550)
         toolbar = NavigationToolbar(self.locmap, self)
         
         mapctrl = QFrame()
@@ -808,9 +808,9 @@ class PyCPD(QMainWindow):
         mapctrl.setLayout(mcl)
         
         self.splot = SpectrumCanvas(self, width=5, height=4, dpi=100)
-        self.splot.setMinimumSize(500,450)
+        self.splot.setMinimumSize(500,400)
         self.lachplot = LachenbruchCanvas(self, width=5, height=4, dpi=100)
-        self.lachplot.setMinimumSize(500,450)
+        self.lachplot.setMinimumSize(500,400)
         
         self.plots = QTabWidget()
         self.plots.addTab(self.splot, 'Spectrum')
