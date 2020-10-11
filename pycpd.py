@@ -18,7 +18,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import os
+import os.path
 import shelve
 import sys
 import numpy as np
@@ -75,7 +75,7 @@ class SpectrumCanvas(MyMplCanvas):
         self.qm = None     # Quad mesh returned by pcolormesh
         
     def plot(self, f, mauspar, logscale):
-        if self.qm != None:
+        if self.qm is not None:
             self.axes.cla()
             self.qm = None
         (beta, zt, dz, C) = mauspar
@@ -117,7 +117,7 @@ class SpectrumCanvas(MyMplCanvas):
         self.draw()
     
     def plot2D(self, f, logscale):
-        if self.l1 != None:
+        if self.l1 is not None:
             self.l1 = None
             self.l2 = None
             self.axes.cla()
@@ -231,7 +231,7 @@ class LachenbruchCanvas(MyMplCanvas):
         self.t = None
 
     def plot(self, T, z, title):
-        if self.l == None:
+        if self.l is None:
             self.l, = self.axes.plot(T, z)
             self.t = self.axes.set_title(title)
             self.axes.invert_yaxis()
@@ -781,7 +781,7 @@ class PyCPD(QMainWindow):
         
         self.bh = BoreholeData()
         self.locmap = MapCanvas(self, width=5, height=4, dpi=100)
-        self.locmap.setMinimumSize(700, 600)
+        self.locmap.setMinimumSize(800, 600)
         toolbar = NavigationToolbar(self.locmap, self)
         
         mapctrl = QFrame()
@@ -896,7 +896,7 @@ class PyCPD(QMainWindow):
         self.show()
         
     def achanged(self):
-        if self.locmap == None:
+        if self.locmap is None:
             return
         amin = locale.toDouble(self.amin.text())[0]
         amax = locale.toDouble(self.amax.text())[0]
@@ -908,13 +908,13 @@ class PyCPD(QMainWindow):
         
         
     def bhDown(self):
-        if self.forages == None:
+        if self.forages is None:
             return
         if self.bh.bhlist.currentIndex() > 0:
             self.bh.bhlist.setCurrentIndex(self.bh.bhlist.currentIndex()-1)
         
     def bhUp(self):
-        if self.forages == None:
+        if self.forages is None:
             return
         if self.bh.bhlist.currentIndex() < len(self.forages)-1:
             self.bh.bhlist.setCurrentIndex(1+self.bh.bhlist.currentIndex())
@@ -931,7 +931,7 @@ class PyCPD(QMainWindow):
         self.forage = None
         self.computeSpectrum()
         self.plotLachenbruch()
-        if self.forages != None:
+        if self.forages is not None:
             f = self.forages[self.bh.bhlist.currentIndex()]
 
             self.bh.Q0.clear()
@@ -953,7 +953,7 @@ class PyCPD(QMainWindow):
             else:
                 self.bh.offshore.setText('On land')
                 
-            if f.zb_sat != None:
+            if f.zb_sat is not None:
                 self.bh.zb_sat.setText('Mag. crustal thick. : {0:5.1f} km'.format(f.zb_sat))
             
             self.locmap.updateBhLoc(f)
@@ -963,12 +963,12 @@ class PyCPD(QMainWindow):
     
     def updateSpectrum(self):
         f = None
-        if self.forage != None:
+        if self.forage is not None:
             f = self.forage
-        elif self.forages != None:
+        elif self.forages is not None:
             f = self.forages[self.bh.bhlist.currentIndex()]
             
-        if f != None:
+        if f is not None:
             if self.sp.type.currentIndex() == 0:
                 beta = locale.toDouble(self.mp.betaed.text())[0]
                 zt = locale.toDouble(self.mp.zted.text())[0]
@@ -979,7 +979,7 @@ class PyCPD(QMainWindow):
                 self.splot.plot2D(f, self.sp.log.isChecked())
             
     def computeSpectrum(self, x=None, y=None):
-        if self.grid != None:
+        if self.grid is not None:
             if self.sp.estimator.currentIndex() == 1 or self.sp.type.currentIndex() == 1:
                 self.sp.memest.setVisible(True)
                 if self.sp.memest.currentIndex() == 1:
@@ -1008,7 +1008,7 @@ class PyCPD(QMainWindow):
 
                 
             f = None
-            if x != None and y != None:
+            if x is not None and y is not None:
                 self.forage = cpd.Forage()
                 f = self.forage
                 f.x = x
@@ -1017,16 +1017,16 @@ class PyCPD(QMainWindow):
                 self.statusBar().clearMessage()
                 self.statusBar().showMessage('Point at '+locale.toString(f.x)+', '+locale.toString(f.y))
                 
-            elif self.forage != None:
+            elif self.forage is not None:
                 f = self.forage
-            elif self.forages != None:
+            elif self.forages is not None:
                 index = self.bh.bhlist.currentIndex()
                 f = self.forages[index]
                 
                 self.statusBar().clearMessage()
                 self.statusBar().showMessage('Borehole no '+str(index)+': '+f.site_name)
                 
-            if f != None:
+            if f is not None:
                 ww = 1000.0 * locale.toDouble(self.sp.winsize.text())[0]
                 if self.sp.taperwin.currentIndex() == 0:
                     win = tukey
@@ -1062,7 +1062,7 @@ class PyCPD(QMainWindow):
         
         
     def createDb(self):
-        if self.grid == None:
+        if self.grid is None:
             QMessageBox.warning(self, 'Warning', 'Magnetic data should be loaded first', QMessageBox.Ok)
             return
         fname = QFileDialog.getOpenFileName(self, 'Open file', self.db_path, 'Heat Flow Data (*.csv)')
@@ -1198,11 +1198,11 @@ class PyCPD(QMainWindow):
     def fitSpectrum(self):
         
         f = None
-        if self.forage != None:
+        if self.forage is not None:
             f = self.forage
-        elif self.forages != None:
+        elif self.forages is not None:
             f = self.forages[self.bh.bhlist.currentIndex()]
-        if f != None:
+        if f is not None:
             beta = locale.toDouble(self.mp.betaed.text())[0]
             zt = locale.toDouble(self.mp.zted.text())[0]
             dz = locale.toDouble(self.mp.dzed.text())[0]
@@ -1346,11 +1346,11 @@ class PyCPD(QMainWindow):
     
     def fitSpec2step(self):
         f = None
-        if self.forage != None:
+        if self.forage is not None:
             f = self.forage
-        elif self.forages != None:
+        elif self.forages is not None:
             f = self.forages[self.bh.bhlist.currentIndex()]
-        if f != None:
+        if f is not None:
             beta = locale.toDouble(self.mp.betaed.text())[0]
             zt = locale.toDouble(self.mp.zted.text())[0]
             dz = locale.toDouble(self.mp.dzed.text())[0]
@@ -1389,7 +1389,7 @@ class PyCPD(QMainWindow):
             self.updateSpectrum()
             
     def showAsim(self):
-        if self.forages != None:
+        if self.forages is not None:
             f = self.forages[self.bh.bhlist.currentIndex()]
             if len(f.A_sim)>0:
                 fig = plt.figure()
@@ -1402,7 +1402,7 @@ class PyCPD(QMainWindow):
                 QMessageBox.warning(self, 'Warning', 'No heat production simulation performed at this site', QMessageBox.Ok)
                 
     def showksim(self):
-        if self.forages != None:
+        if self.forages is not None:
             f = self.forages[self.bh.bhlist.currentIndex()]
             if len(f.k_sim)>0:
                 fig = plt.figure()
@@ -1416,7 +1416,7 @@ class PyCPD(QMainWindow):
                                     QMessageBox.Ok)
                 
     def plotLachenbruch(self):
-        if self.forages != None:
+        if self.forages is not None:
             f = self.forages[self.bh.bhlist.currentIndex()]
             z = 1000.0 * np.arange(81)            
             D = 1000.0 * locale.toDouble(self.lach.D.text())[0]
