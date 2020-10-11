@@ -51,6 +51,15 @@ beta_ub = 5.8
 C_lb = -np.inf
 C_ub = np.inf
 
+xtol_fmin = 0.0001
+ftol_fmin = 0.0001
+maxiter_fmin = None
+maxfun_fmin = None
+
+xtol_ls = 1e-8
+ftol_ls = 1e-8
+gtol_ls = 1e-8
+max_nfev_ls = None
 
 class Point:
     def __init__(self, x, y):
@@ -812,7 +821,7 @@ def find_beta(dz, Phi_exp, kh, beta0, zt=1.0, C=0, wlf=False, method='fmin', lb=
         return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=beta0, args=(dz, Phi_exp, zt, kh, C), full_output=True, disp=False)
+        xopt = fmin(func, x0=beta0, args=(dz, Phi_exp, zt, kh, C), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         misfit = xopt[1]
 
@@ -822,7 +831,7 @@ def find_beta(dz, Phi_exp, kh, beta0, zt=1.0, C=0, wlf=False, method='fmin', lb=
         if len(ub) == 0:
             ub = np.array([beta_ub])
 
-        res = least_squares(func, x0=beta0, jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, zt, kh, C))
+        res = least_squares(func, x0=beta0, jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, zt, kh, C), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         misfit = res.cost
 
@@ -865,7 +874,7 @@ def find_zt(dz, Phi_exp, kh, beta, zt0, C=0, wlf=False, method='fmin', lb=[], ub
         return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=zt0, args=(dz, Phi_exp, beta, kh, C), full_output=True, disp=False)
+        xopt = fmin(func, x0=zt0, args=(dz, Phi_exp, beta, kh, C), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         zt_opt = xopt[0][0]
         misfit = xopt[1]
 
@@ -875,7 +884,7 @@ def find_zt(dz, Phi_exp, kh, beta, zt0, C=0, wlf=False, method='fmin', lb=[], ub
         if len(ub) == 0:
             ub = np.array([zt_ub])
 
-        res = least_squares(func, x0=zt0, jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, beta, kh, C))
+        res = least_squares(func, x0=zt0, jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, beta, kh, C), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         zt_opt = res.x[0]
         misfit = res.cost
 
@@ -918,7 +927,7 @@ def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False, method='fmin', lb=[], ub=[
         return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=dz0, args=(zt, Phi_exp, beta, kh, C), full_output=True, disp=False)
+        xopt = fmin(func, x0=dz0, args=(zt, Phi_exp, beta, kh, C), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         dz_opt = xopt[0][0]
         misfit = xopt[1]
 
@@ -928,7 +937,7 @@ def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False, method='fmin', lb=[], ub=[
         if len(ub) == 0:
             ub = np.array([dz_ub])
 
-        res = least_squares(func, x0=dz0, jac='3-point', bounds=(lb,ub), args=(zt, Phi_exp, beta, kh, C))
+        res = least_squares(func, x0=dz0, jac='3-point', bounds=(lb,ub), args=(zt, Phi_exp, beta, kh, C), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         dz_opt = res.x[0]
         misfit = res.cost
 
@@ -971,7 +980,7 @@ def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False, method='fmin', lb=[], ub=[]
         return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=C0, args=(zt, Phi_exp, beta, kh, dz), full_output=True, disp=False)
+        xopt = fmin(func, x0=C0, args=(zt, Phi_exp, beta, kh, dz), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         C_opt = xopt[0][0]
         misfit = xopt[1]
 
@@ -981,7 +990,7 @@ def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False, method='fmin', lb=[], ub=[]
         if len(ub) == 0:
             ub = np.array([C_ub])
 
-        res = least_squares(func, x0=C0, jac='3-point', bounds=(lb,ub), args=(zt, Phi_exp, beta, kh, dz))
+        res = least_squares(func, x0=C0, jac='3-point', bounds=(lb,ub), args=(zt, Phi_exp, beta, kh, dz), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         C_opt = res.x[0]
         misfit = res.cost
 
@@ -1029,7 +1038,7 @@ def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False, method='fmin'
         return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([beta0, zt0, dz0, C0]), args=(Phi_exp, kh), full_output=True, disp=False)
+        xopt = fmin(func, x0=np.array([beta0, zt0, dz0, C0]), args=(Phi_exp, kh), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         dz_opt = xopt[0][2]
@@ -1042,7 +1051,7 @@ def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False, method='fmin'
         if len(ub) == 0:
             ub = np.array([beta_ub, zt_ub, dz_ub, C_ub])
 
-        res = least_squares(func, x0=np.array([beta0, zt0, dz0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh))
+        res = least_squares(func, x0=np.array([beta0, zt0, dz0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         zt_opt = res.x[1]
         dz_opt = res.x[2]
@@ -1093,7 +1102,7 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb
         return np.sqrt(iN * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([beta0, zt0, C0]), args=(Phi_exp, kh, dz), full_output=True, disp=False)
+        xopt = fmin(func, x0=np.array([beta0, zt0, C0]), args=(Phi_exp, kh, dz), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         C_opt = xopt[0][2]
@@ -1105,7 +1114,7 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb
         if len(ub) == 0:
             ub = np.array([beta_ub, zt_ub, C_ub])
 
-        res = least_squares(func, x0=np.array([beta0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz))
+        res = least_squares(func, x0=np.array([beta0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         zt_opt = res.x[1]
         C_opt = res.x[2]
@@ -1117,19 +1126,19 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb
         if len(ub) == 0:
             ub = np.array([beta_ub, zt_ub, C_ub])
 
-        res = least_squares(func, x0=np.array([beta0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz))
+        res = least_squares(func, x0=np.array([beta0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         zt_opt = res.x[1]
         C_opt = res.x[2]
 
-        xopt = fmin(func, x0=np.array([beta_opt, zt_opt, C_opt]), args=(Phi_exp, kh, dz), full_output=True, disp=False)
+        xopt = fmin(func, x0=np.array([beta_opt, zt_opt, C_opt]), args=(Phi_exp, kh, dz), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         C_opt = xopt[0][2]
         misfit = xopt[1]
 
     elif method == '2sb':
-        xopt = fmin(func, x0=np.array([beta0, zt0, C0]), args=(Phi_exp, kh, dz), full_output=True, disp=False)
+        xopt = fmin(func, x0=np.array([beta0, zt0, C0]), args=(Phi_exp, kh, dz), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         C_opt = xopt[0][2]
@@ -1152,7 +1161,7 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb
         if C_opt > ub[2]:
             C_opt = ub[2]
 
-        res = least_squares(func, x0=np.array([beta_opt, zt_opt, C_opt]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz))
+        res = least_squares(func, x0=np.array([beta_opt, zt_opt, C_opt]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         zt_opt = res.x[1]
         C_opt = res.x[2]
@@ -1251,7 +1260,7 @@ def find_beta_dz_C(Phi_exp, kh, beta0, dz0, C0, zt=1.0, wlf=False, method='fmin'
         return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([beta0, dz0, C0]), args=(Phi_exp, kh, zt), full_output=True, disp=False)
+        xopt = fmin(func, x0=np.array([beta0, dz0, C0]), args=(Phi_exp, kh, zt), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         dz_opt = xopt[0][1]
         C_opt = xopt[0][2]
@@ -1263,7 +1272,7 @@ def find_beta_dz_C(Phi_exp, kh, beta0, dz0, C0, zt=1.0, wlf=False, method='fmin'
         if len(ub) == 0:
             ub = np.array([beta_ub, dz_ub, C_ub])
 
-        res = least_squares(func, x0=np.array([beta0, dz0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, zt))
+        res = least_squares(func, x0=np.array([beta0, dz0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, zt), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         dz_opt = res.x[1]
         C_opt = res.x[2]
@@ -1312,7 +1321,7 @@ def find_beta_dz_zt(Phi_exp, kh, beta0, dz0, zt0, C, wlf=False, method='fmin', l
         return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([beta0, dz0, zt0]), args=(Phi_exp, kh, C), full_output=True, disp=False)
+        xopt = fmin(func, x0=np.array([beta0, dz0, zt0]), args=(Phi_exp, kh, C), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         dz_opt = xopt[0][1]
         zt_opt = xopt[0][2]
@@ -1324,7 +1333,7 @@ def find_beta_dz_zt(Phi_exp, kh, beta0, dz0, zt0, C, wlf=False, method='fmin', l
         if len(ub) == 0:
             ub = np.array([beta_ub, dz_ub, zt_ub])
 
-        res = least_squares(func, x0=np.array([beta0, dz0, zt0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, C))
+        res = least_squares(func, x0=np.array([beta0, dz0, zt0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, C), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         dz_opt = res.x[1]
         zt_opt = res.x[2]
@@ -1371,7 +1380,7 @@ def find_beta_zt(dz, Phi_exp, kh, beta0, zt0, C=0, wlf=False, method='fmin', lb=
         return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([beta0, zt0]), args=(dz, Phi_exp, kh, C), full_output=True, disp=False)
+        xopt = fmin(func, x0=np.array([beta0, zt0]), args=(dz, Phi_exp, kh, C), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         misfit = xopt[1]
@@ -1382,7 +1391,7 @@ def find_beta_zt(dz, Phi_exp, kh, beta0, zt0, C=0, wlf=False, method='fmin', lb=
         if len(ub) == 0:
             ub = np.array([beta_ub, zt_ub])
 
-        res = least_squares(func, x0=np.array([beta0, zt0]), jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, kh, C))
+        res = least_squares(func, x0=np.array([beta0, zt0]), jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, kh, C), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         zt_opt = res.x[1]
         misfit = res.cost
@@ -1428,7 +1437,7 @@ def find_beta_C(dz, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False, method='fmin', lb
         return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([beta0, C0]), args=(dz, Phi_exp, kh, zt), full_output=True, disp=False)
+        xopt = fmin(func, x0=np.array([beta0, C0]), args=(dz, Phi_exp, kh, zt), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         C_opt = xopt[0][1]
         misfit = xopt[1]
@@ -1439,7 +1448,7 @@ def find_beta_C(dz, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False, method='fmin', lb
         if len(ub) == 0:
             ub = np.array([beta_ub, C_ub])
 
-        res = least_squares(func, x0=np.array([beta0, C0]), jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, kh, zt))
+        res = least_squares(func, x0=np.array([beta0, C0]), jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, kh, zt), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         C_opt = res.x[1]
         misfit = res.cost
@@ -1484,7 +1493,7 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
         return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([dz0, zt0]), args=(Phi_exp, kh, beta, C), disp=False, full_output=True)
+        xopt = fmin(func, x0=np.array([dz0, zt0]), args=(Phi_exp, kh, beta, C), disp=False, full_output=True, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         dz_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         misfit = xopt[1]
@@ -1495,7 +1504,7 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
         if len(ub) == 0:
             ub = np.array([dz_ub, zt_ub])
 
-        res = least_squares(func, x0=np.array([dz0, zt0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta, C))
+        res = least_squares(func, x0=np.array([dz0, zt0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta, C), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         dz_opt = res.x[0]
         zt_opt = res.x[1]
         misfit = res.cost
@@ -1540,7 +1549,7 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
 #         return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 #
 #     if method == 'fmin':
-#         xopt = fmin(func, x0=zb0, args=(beta, Phi_exp, zt, kh, C), disp=False, full_output=True)
+#         xopt = fmin(func, x0=zb0, args=(beta, Phi_exp, zt, kh, C), disp=False, full_output=True, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
 #         zb_opt = xopt[0]
 #         misfit = xopt[1]
 #
@@ -1550,7 +1559,7 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
 #         if len(ub) == 0:
 #             ub = np.array([zb_ub])
 #
-#         res = least_squares(func, x0=zb0, jac='3-point', bounds=(lb,ub), args=(beta, Phi_exp, zt, kh, C))
+#         res = least_squares(func, x0=zb0, jac='3-point', bounds=(lb,ub), args=(beta, Phi_exp, zt, kh, C), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
 #         zb_opt = res.x[0]
 #         misfit = res.cost
 #
@@ -1593,7 +1602,7 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
         return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([dz0, zt0, C0]), args=(Phi_exp, kh, beta), full_output=True, disp=False)
+        xopt = fmin(func, x0=np.array([dz0, zt0, C0]), args=(Phi_exp, kh, beta), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         dz_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         C_opt = xopt[0][2]
@@ -1605,7 +1614,7 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
         if len(ub) == 0:
             ub = np.array([dz_ub, zt_ub, C_ub])
 
-        res = least_squares(func, x0=np.array([dz0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta))
+        res = least_squares(func, x0=np.array([dz0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         dz_opt = res.x[0]
         zt_opt = res.x[1]
         C_opt = res.x[2]
@@ -1618,19 +1627,19 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
         if len(ub) == 0:
             ub = np.array([dz_ub, zt_ub, C_ub])
 
-        res = least_squares(func, x0=np.array([dz0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta))
+        res = least_squares(func, x0=np.array([dz0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         dz_opt = res.x[0]
         zt_opt = res.x[1]
         C_opt = res.x[2]
 
-        xopt = fmin(func, x0=np.array([dz_opt, zt_opt, C_opt]), args=(Phi_exp, kh, beta), full_output=True, disp=False)
+        xopt = fmin(func, x0=np.array([dz_opt, zt_opt, C_opt]), args=(Phi_exp, kh, beta), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         dz_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         C_opt = xopt[0][2]
         misfit = xopt[1]
 
     elif method == '2sb':
-        xopt = fmin(func, x0=np.array([dz0, zt0, C0]), args=(Phi_exp, kh, beta), full_output=True, disp=False)
+        xopt = fmin(func, x0=np.array([dz0, zt0, C0]), args=(Phi_exp, kh, beta), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         dz_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         C_opt = xopt[0][2]
@@ -1653,7 +1662,7 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
         if C_opt > ub[2]:
             C_opt = ub[2]
 
-        res = least_squares(func, x0=np.array([dz_opt, zt_opt, C_opt]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta))
+        res = least_squares(func, x0=np.array([dz_opt, zt_opt, C_opt]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         dz_opt = res.x[0]
         zt_opt = res.x[1]
         C_opt = res.x[2]
@@ -1701,7 +1710,7 @@ def find_zt_C(Phi_exp, kh, beta, dz, zt0, C0, wlf=False, method='fmin', lb=[], u
         return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([zt0, C0]), args=(Phi_exp, kh, dz, beta), full_output=True, disp=False)
+        xopt = fmin(func, x0=np.array([zt0, C0]), args=(Phi_exp, kh, dz, beta), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         zt_opt = xopt[0][0]
         C_opt = xopt[0][1]
         misfit = xopt[1]
@@ -1712,7 +1721,7 @@ def find_zt_C(Phi_exp, kh, beta, dz, zt0, C0, wlf=False, method='fmin', lb=[], u
         if len(ub) == 0:
             ub = np.array([zt_ub, C_ub])
 
-        res = least_squares(func, x0=np.array([zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz, beta))
+        res = least_squares(func, x0=np.array([zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz, beta), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         zt_opt = res.x[0]
         C_opt = res.x[1]
         misfit = res.cost
