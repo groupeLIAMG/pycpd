@@ -281,7 +281,7 @@ class Grid2d:
             except RuntimeError as e:
                 raise e
 
-    def ncdump(self, fname='test.nc'):
+    def ncdump(self, fname='test.nc', complevel=4):
         dataset = netCDF4.Dataset(fname, 'w', format='NETCDF4')
 
         dataset.createDimension('x', self.ncol)
@@ -290,7 +290,7 @@ class Grid2d:
         varx = dataset.createVariable('x', np.float64, ('x'))
         vary = dataset.createVariable('y', np.float64, ('y'))
         varz = dataset.createVariable('z', np.float32, ('y','x'),
-                                      zlib=True, complevel=3, fill_value = np.nan)
+                                      zlib=True, complevel=complevel, fill_value = np.nan)
         varz.actual_range = [np.min(self.data), np.max(self.data)]
 
         varx[:] = self.xwest + self.dx*np.arange(self.ncol, dtype=np.float64)
