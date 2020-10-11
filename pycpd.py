@@ -43,7 +43,8 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-from mpl_toolkits.basemap import Basemap, cm  # @UnresolvedImport
+import cartopy.feature as cfeature
+import cm
 
 import cpd
 
@@ -139,50 +140,51 @@ class MapCanvas(MyMplCanvas):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bh1 = None
-        self.m = None
+#        self.m = None
         self.im = None
         self.cb = None
         self.allbh = None
-        self.gxmin = 0.0
-        self.gymin = 0.0
         self.amin = -600.0
         self.amax = 600.0
         
     def drawMap(self, grid):
         
         self.axes.cla()
-        if self.cb != None:
+        if self.cb is not None:
             self.cb.remove()
         
-        bmpar = cpd.proj4string2dict(grid.proj4string)
-        bmpar['width'] = grid.xeast-grid.xwest
-        bmpar['height'] = grid.ynorth-grid.ysouth
-        bmpar['llcrnrlon'] = grid.c0[0]
-        bmpar['llcrnrlat'] = grid.c0[1]
-        bmpar['urcrnrlon'] = grid.c1[0]
-        bmpar['urcrnrlat'] = grid.c1[1]
-        bmpar['resolution'] = 'l'
-        bmpar['ax'] = self.axes
         
-        self.gxmin = grid.xwest
-        self.gymin = grid.ysouth
-        self.m = Basemap(**bmpar)
-        self.m.drawcoastlines()
-        self.m.drawstates()
-        self.m.drawcountries()
-        self.m.drawmeridians(np.arange(0,360,10),labels=[0,0,0,1],fontsize=10)
-        self.m.drawparallels(np.arange(-90,90,10),labels=[1,0,0,0],fontsize=10)
+        extent = (grid.xwest.data, grid.xeast.data, grid.ysouth.data, grid.ynorth.data)
         
-        self.im = self.m.imshow(grid.data, cmap=cm.GMT_wysiwyg, clim=(self.amin, self.amax), picker=1)
-        self.cb = self.fig.colorbar(self.im, ticks=np.arange(self.amin, self.amax, (self.amax-self.amin)/10.0))
+        projection = cpd.proj4string2cartopy(grid.proj4string)
+        
+        self.fig.delaxes(self.axes)
+        self.axes = self.fig.add_subplot(111, projection=projection)
+        self.axes.set_extent(extent, crs=projection)
+
+        self.im = self.axes.imshow(grid.data, cmap=cm.GMT_wysiwyg, origin='lower', extent=extent,
+                 clim=(self.amin, self.amax), transform=projection, picker=1)
+
+        try:
+            self.axes.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False)
+        except:
+            # labels not available for older versions
+            self.axes.gridlines()
+        
+        self.axes.add_feature(cfeature.COASTLINE)
+        self.axes.add_feature(cfeature.BORDERS)
+        self.axes.add_feature(cfeature.STATES)
+
+        self.cb = self.fig.colorbar(self.im, fraction=0.046, pad=0.1,
+                                    ticks=np.arange(self.amin, self.amax+1, (self.amax-self.amin)/10.0))
         self.axes.set_title('Magnetic Anomaly')
         
         self.draw()
         
         def onpick(event):
             if event.artist == self.im and event.mouseevent.button == 1:
-                self.mapClicked.emit(grid.xwest+event.mouseevent.xdata,
-                                     grid.ysouth+event.mouseevent.ydata)
+                self.mapClicked.emit(event.mouseevent.xdata,
+                                     event.mouseevent.ydata)
             elif event.artist == self.allbh:
                 if event.artist.get_visible():
                     if event.mouseevent.button == 3:
@@ -190,39 +192,36 @@ class MapCanvas(MyMplCanvas):
                     else:
                         self.bhClicked.emit(event.ind[0])
 
-                    
         self.mpl_connect('pick_event', onpick)
         
     def set_clim(self, amin, amax):
         self.amin = amin
         self.amax = amax
-        if self.im != None:
+        if self.im is not None:
             self.im.set_clim((amin, amax))
             self.draw()
         
     def updateBhLoc(self, f):
-        if self.m != None:
-            if self.bh1 == None:
-                self.bh1, = self.m.plot(f.x-self.gxmin, f.y-self.gymin, 'k*', mfc='r', ms=20)
-            else:
-                self.bh1.set_data(f.x-self.gxmin, f.y-self.gymin)
-            self.draw()
+        if self.bh1 is None:
+            self.bh1, = self.axes.plot(f.x, f.y, 'k*', mfc='r', ms=20)
+        else:
+            self.bh1.set_data(f.x, f.y)
+        self.draw()
 
     def updateBhLocs(self, forages, visible):
-        if forages == None:
+        if forages is None:
             return
-        if self.m != None:
-            if self.allbh == None:
-                x = np.empty((len(forages),))
-                y = np.empty((len(forages),))
-                for n in range(len(forages)):
-                    x[n] = forages[n].x-self.gxmin
-                    y[n] = forages[n].y-self.gymin
-                    
-                self.allbh, = self.m.plot(x, y, 'ko', mfc=[0.5, 0.5, 0.5, 0.5], picker=2)
-                
-            self.allbh.set_visible(visible)                
-            self.draw()
+        if self.allbh is None:
+            x = np.empty((len(forages),))
+            y = np.empty((len(forages),))
+            for n in range(len(forages)):
+                x[n] = forages[n].x
+                y[n] = forages[n].y
+                 
+            self.allbh, = self.axes.plot(x, y, 'ko', mfc=[0.5, 0.5, 0.5, 0.5], picker=2)
+             
+        self.allbh.set_visible(visible)                
+        self.draw()
             
 class LachenbruchCanvas(MyMplCanvas):
     

@@ -32,6 +32,7 @@ from scipy.signal import tukey
 from scipy.linalg import lstsq
 import pyproj
 import netCDF4
+import cartopy.crs as ccrs
 
 import time
 import warnings
@@ -127,35 +128,82 @@ class Forage:
         else:
             warnings.warn('Projection undefined, coordinates not projected', UserWarning)
 
-def proj4string2dict(proj4string):
+def proj4string2cartopy(proj4string):
     '''
-    Function to build the set of arguments to the constructor of a matplotlib Basemap object
-    from a proj4 string
+    Function to build a cartopy projection from a proj4 string
 
     This is far from complete and was tested only with the Lambert Conformal projection
     '''
     params = {}
     tmp = proj4string.split('+')
-    a=None
-    b=None
+    a = None
+    b = None
     for t in tmp:
         if len(t)>0:
             t2 = t.strip().split('=')
-            if t2[0] == 'proj':
-                params['projection'] = t2[1]
-            elif t2[0]=='lon_0' or t2[0]=='lon_1' or t2[0]=='lon_2' or t2[0]=='lat_0' \
-              or t2[0]=='lat_1' or t2[0]=='lat_2' or t2[0]=='lat_ts' or t2[0]=='k_0':
-                params[t2[0]] = float(t2[1])
-            elif t2[0]=='ellps':
+            if len(t2) > 1:
                 params[t2[0]] = t2[1]
-            elif t2[0]=='a':
-                a = float(t2[1])
-            elif t2[0]=='b':
-                b = float(t2[1])
 
-    if a != None and b != None:
-        params['rsphere'] = (a,b)
-    return params
+    # build Globe first
+    datum = None
+    ellipse = 'WGS84'
+    semimajor_axis = None
+    semiminor_axis = None
+    flattening = None
+    inverse_flattening = None
+    towgs84 = None
+    nadgrids = None
+    
+    if 'ellps' in params:
+        ellipse = params['ellps']
+    if 'datum' in params:
+        datum = params['datum']
+    if 'a' in params:
+        semimajor_axis = float(params['a'])
+    if 'b' in params:
+        semiminor_axis = float(params['b'])
+    if 'nadgrids' in params:
+        nadgrids = params['nadgrids']
+        
+    globe = ccrs.Globe(datum=datum, ellipse=ellipse,
+                       semimajor_axis=semimajor_axis,
+                       semiminor_axis=semiminor_axis, flattening=flattening,
+                       inverse_flattening=inverse_flattening, towgs84=towgs84,
+                       nadgrids=nadgrids)
+    
+    if params['proj'] == 'lcc':
+        central_longitude = -96.0
+        central_latitude = 39.0
+        false_easting = 0.0
+        false_northing = 0.0
+        secant_latitudes = None
+        standard_parallels = None
+        globe=globe
+        cutoff=-30
+        
+        if 'lon_0' in params:
+            central_longitude = float(params['lon_0'])
+        if 'lat_0' in params:
+            central_latitude = float(params['lat_0'])
+        if 'x_0' in params:
+            false_easting = float(params['x_0'])
+        if 'y_0' in params:
+            false_northing = float(params['y_0'])
+        if 'lat_1' in params and 'lat_2' in params:
+            standard_parallels = (float(params['lat_1']), float(params['lat_2']))
+        
+        proj = ccrs.LambertConformal(central_longitude=central_longitude,
+                                     central_latitude=central_latitude,
+                                     false_easting=false_easting,
+                                     false_northing=false_northing,
+                                     secant_latitudes=secant_latitudes,
+                                     standard_parallels=standard_parallels,
+                                     globe=globe,
+                                     cutoff=cutoff)
+    else:
+        raise NotImplementedError('Projection '+params['proj']+' not yet implemented')
+
+    return proj
 
 
 class Grid2d:
