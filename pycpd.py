@@ -60,9 +60,8 @@ class MyMplCanvas(FigureCanvas):
         FigureCanvas.__init__(self, self.fig)
         self.setParent(parent)
 
-        FigureCanvas.setSizePolicy(self, QSizePolicy.Expanding,
-                                   QSizePolicy.Expanding)
-        FigureCanvas.updateGeometry(self)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.updateGeometry()
 
 
 
@@ -780,7 +779,7 @@ class PyCPD(QMainWindow):
         rw = QWidget()
         
         self.bh = BoreholeData()
-        self.locmap = MapCanvas(self, width=5, height=4, dpi=100)
+        self.locmap = MapCanvas(self)
         self.locmap.setMinimumSize(800, 550)
         toolbar = NavigationToolbar(self.locmap, self)
         
@@ -807,10 +806,10 @@ class PyCPD(QMainWindow):
         
         mapctrl.setLayout(mcl)
         
-        self.splot = SpectrumCanvas(self, width=5, height=4, dpi=100)
-        self.splot.setMinimumSize(500,400)
-        self.lachplot = LachenbruchCanvas(self, width=5, height=4, dpi=100)
-        self.lachplot.setMinimumSize(500,400)
+        self.splot = SpectrumCanvas(self)
+        self.splot.setMinimumSize(500, 450)
+        self.lachplot = LachenbruchCanvas(self)
+        self.lachplot.setMinimumSize(500, 450)
         
         self.plots = QTabWidget()
         self.plots.addTab(self.splot, 'Spectrum')
@@ -869,6 +868,7 @@ class PyCPD(QMainWindow):
 
 
         hbox = QHBoxLayout()
+        hbox.setContentsMargins(0, 0, 0, 0)
         #hbox.addStretch(1)
         hbox.addWidget(lw)
         hbox.addWidget(rw)
@@ -889,7 +889,7 @@ class PyCPD(QMainWindow):
         lw.setLayout(rvbox1)
         rw.setLayout(rvbox2)
         
-        mw.setLayout(hbox)    
+        mw.setLayout(hbox)
         
         self.setGeometry(100, 100, 300, 150)
         self.setWindowTitle('Curie-Point Depth Calculator')
