@@ -1188,6 +1188,8 @@ class PyCPD(QMainWindow):
         if fname[0]:
             if fname[0][-3:] == '.db':
                 filename = fname[0][:-3] # remove extension, it is added by shelve
+            elif fname[0][-4:] == '.dat':
+                filename = fname[0][:-4]
             else:
                 filename = fname[0]
             db = shelve.open(filename, 'n')
