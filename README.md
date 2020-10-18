@@ -9,13 +9,13 @@ The user interface is really a work in progress for now.  More to come soon.
 
 ## Requirements
 
-pycpd is programmed in python 3 and was tested on a mac running python 3.5 installed via macports.
+pycpd is programmed in python 3 and was tested on a mac running python 3.8 installed via macports.
 
-The following python mudules are needed to run the software
+The following python modules are needed to run the software
 - numpy and scipy
 - pandas
 - PyQt5
-- matplotlib basemap (https://matplotlib.org/basemap/)
+- cartopy (https://scitools.org.uk/cartopy/docs/latest/)
 - netCDF4 (https://github.com/Unidata/netcdf4-python)
 - pyproj (https://github.com/jswhit/pyproj)
 - pyfftw (https://pypi.python.org/pypi/pyFFTW)
