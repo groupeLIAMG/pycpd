@@ -27,7 +27,10 @@ import sys
 import numpy as np
 from scipy.special import erfcinv
 from scipy import linalg
-import pyfftw.interfaces.numpy_fft as np_fft
+try:
+    import pyfftw.interfaces.numpy_fft as np_fft
+except:
+    import numpy.fft as np_fft
 
 class Covariance:
     """

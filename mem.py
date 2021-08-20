@@ -15,7 +15,11 @@
 '''
 
 import numpy as np
-import pyfftw.interfaces.numpy_fft as np_fft
+try:
+    import pyfftw.interfaces.numpy_fft as np_fft
+except:
+    import numpy.fft as np_fft
+
 
 def lim_malik(data, nitermax=50):
     
