@@ -1,0 +1,10 @@
+six>=1.16.0
+matplotlib>=3.4.3
+numpy>=1.21.2
+pyproj>=3.1.0
+netCDF4>=1.5.6
+Cartopy>=0.19.0.post1
+spectrum>=0.8.0
+scipy>=1.7.1
+pandas>=1.3.2
+Cython>=0.29.24
