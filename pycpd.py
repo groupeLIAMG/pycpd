@@ -24,17 +24,16 @@ import sys
 import numpy as np
 from scipy import stats
 import pandas as pd
-from scipy.signal import tukey, hanning
+from scipy.signal.windows import tukey, hanning
 
 import matplotlib
 from PyQt5.QtGui import QDoubleValidator, QIntValidator
 
 # Make sure that we are using QT5
 matplotlib.use('Qt5Agg')
-from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QMainWindow, QCheckBox,
-                             QApplication, QGroupBox, QLabel, QLineEdit, QComboBox, QFileDialog,
-                             QGridLayout, QSlider, QSizePolicy, QAction, qApp, QFrame, QMessageBox,
-                             QTabWidget, QDialog, QListWidget, QListWidgetItem)
+from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout, QVBoxLayout, QMainWindow, QCheckBox, QApplication,
+                             QGroupBox, QLabel, QLineEdit, QComboBox, QFileDialog, QGridLayout, QSlider, QSizePolicy,
+                             QAction, qApp, QFrame, QMessageBox, QTabWidget, QDialog, QListWidget, QListWidgetItem)
 from PyQt5.QtCore import Qt, pyqtSignal, QLocale
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -50,8 +49,10 @@ import cpd
 
 locale = QLocale()
 
+
 class MyMplCanvas(FigureCanvas):
     """Ultimately, this is a QWidget (as well as a FigureCanvasAgg, etc.)."""
+
     # from http://matplotlib.org/examples/user_interfaces/embedding_in_qt5.html
     def __init__(self, parent=None, width=5, height=4, dpi=100):
         self.fig = Figure(figsize=(width, height), dpi=dpi)
@@ -64,35 +65,35 @@ class MyMplCanvas(FigureCanvas):
         self.updateGeometry()
 
 
-
 class SpectrumCanvas(MyMplCanvas):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.l1 = None     # line of measured spectrum
-        self.l2 = None     # line of modelled spectrum
+        self.l1 = None  # line of measured spectrum
+        self.l2 = None  # line of modelled spectrum
+        self.l3 = None  # std dev
         self.t = None
-        self.qm = None     # Quad mesh returned by pcolormesh
-        
+        self.qm = None  # Quad mesh returned by pcolormesh
+
     def plot(self, f, mauspar, logscale):
         if self.qm is not None:
             self.axes.cla()
             self.qm = None
         (beta, zt, dz, C) = mauspar
-        Sm = cpd.bouligand4(beta, zt, dz, f.k_r, C)
-        w = 1.0 #/ (f.std_r**2)
-        
-        el1 = np.sqrt(1.0/f.S_r.size * np.sum((w*((f.S_r - Sm)**2))))
+        spectrum_m = cpd.bouligand4(beta, zt, dz, f.k_r, C)
+        w = 1.0  # / (f.std_r**2)
 
-        conf_int = f.std_r*stats.t.ppf(0.95, f.ns_r-1) / np.sqrt(f.ns_r) 
-        
-        if self.l1 == None:
+        el1 = np.sqrt(1.0 / f.S_r.size * np.sum((w * ((f.S_r - spectrum_m) ** 2))))
+
+        conf_int = f.std_r * stats.t.ppf(0.95, f.ns_r - 1) / np.sqrt(f.ns_r)
+
+        if self.l1 is None:
             if logscale:
-                self.l1, self.l2 = self.axes.semilogx(f.k_r, f.S_r, f.k_r, Sm)
-                self.l3 = self.axes.fill_between(f.k_r, f.S_r-conf_int, f.S_r+conf_int,
+                self.l1, self.l2 = self.axes.semilogx(f.k_r, f.S_r, f.k_r, spectrum_m)
+                self.l3 = self.axes.fill_between(f.k_r, f.S_r - conf_int, f.S_r + conf_int,
                                                  facecolor=[0.12156863, 0.46666667, 0.70588235, 0.2])
             else:
-                self.l1, self.l2 = self.axes.plot(f.k_r, f.S_r, f.k_r, Sm)
-                self.l3 = self.axes.fill_between(f.k_r, f.S_r-conf_int, f.S_r+conf_int,
+                self.l1, self.l2 = self.axes.plot(f.k_r, f.S_r, f.k_r, spectrum_m)
+                self.l3 = self.axes.fill_between(f.k_r, f.S_r - conf_int, f.S_r + conf_int,
                                                  facecolor=[0.12156863, 0.46666667, 0.70588235, 0.2])
             self.t = self.axes.set_title('Normalized RMS misfit: {0:g}'.format(el1))
             self.axes.set_xlabel('Wavenumber (rad/km)')
@@ -103,24 +104,24 @@ class SpectrumCanvas(MyMplCanvas):
             else:
                 self.axes.set_xscale('linear')
             self.l1.set_data(f.k_r, f.S_r)
-            self.l2.set_data(f.k_r, Sm)
+            self.l2.set_data(f.k_r, spectrum_m)
             self.l3.remove()
-            self.l3 = self.axes.fill_between(f.k_r, f.S_r-conf_int, f.S_r+conf_int,
+            self.l3 = self.axes.fill_between(f.k_r, f.S_r - conf_int, f.S_r + conf_int,
                                              facecolor=[0.12156863, 0.46666667, 0.70588235, 0.2])
 
             self.axes.relim()
             self.axes.autoscale_view()
-            
+
             self.t.set_text('Normalized RMS misfit: {0:g}'.format(el1))
-                 
+
         self.draw()
-    
-    def plot2D(self, f, logscale):
+
+    def plot_2d(self, f, logscale):
         if self.l1 is not None:
             self.l1 = None
             self.l2 = None
             self.axes.cla()
-            
+
         if logscale:
             self.axes.set_xscale('log')
         else:
@@ -130,8 +131,8 @@ class SpectrumCanvas(MyMplCanvas):
         self.axes.set_ylabel('Angle (°)')
         self.draw()
 
+
 class MapCanvas(MyMplCanvas):
-    
     mapClicked = pyqtSignal(float, float)
     bhClicked = pyqtSignal(int)
     bhRightClicked = pyqtSignal(int)
@@ -139,51 +140,49 @@ class MapCanvas(MyMplCanvas):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bh1 = None
-#        self.m = None
+        #        self.m = None
         self.im = None
         self.cb = None
         self.allbh = None
         self.amin = -600.0
         self.amax = 600.0
-        
-    def drawMap(self, grid):
-        
+
+    def draw_map(self, grid):
+
         self.axes.cla()
         if self.cb is not None:
             self.cb.remove()
-        
-        
+
         extent = (grid.xwest.data, grid.xeast.data, grid.ysouth.data, grid.ynorth.data)
-        
+
         projection = cpd.proj4string2cartopy(grid.proj4string)
-        
+
         self.fig.delaxes(self.axes)
         self.axes = self.fig.add_subplot(111, projection=projection)
         self.axes.set_extent(extent, crs=projection)
 
         self.im = self.axes.imshow(grid.data, cmap=cm.GMT_wysiwyg, origin='lower', extent=extent,
-                 clim=(self.amin, self.amax), transform=projection, picker=1)
+                                   clim=(self.amin, self.amax), transform=projection, picker=1)
 
         try:
             self.axes.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False)
         except:
             # labels not available for older versions
             self.axes.gridlines()
-        
+
         self.axes.add_feature(cfeature.COASTLINE)
         self.axes.add_feature(cfeature.BORDERS)
         self.axes.add_feature(cfeature.STATES)
 
         self.cb = self.fig.colorbar(self.im, fraction=0.046, pad=0.1,
-                                    ticks=np.arange(self.amin, self.amax+1, (self.amax-self.amin)/10.0))
+                                    ticks=np.arange(self.amin, self.amax + 1, (self.amax - self.amin) / 10.0))
         self.axes.set_title('Magnetic Anomaly')
-        
+
         self.draw()
-        
+
         def onpick(event):
             if event.artist == self.im and event.mouseevent.button == 1:
-                self.mapClicked.emit(event.mouseevent.xdata,
-                                     event.mouseevent.ydata)
+                self.mapClicked.emit(event.mouseevent.xdata, event.mouseevent.ydata)
             elif event.artist == self.allbh:
                 if event.artist.get_visible():
                     if event.mouseevent.button == 3:
@@ -192,22 +191,22 @@ class MapCanvas(MyMplCanvas):
                         self.bhClicked.emit(event.ind[0])
 
         self.mpl_connect('pick_event', onpick)
-        
+
     def set_clim(self, amin, amax):
         self.amin = amin
         self.amax = amax
         if self.im is not None:
             self.im.set_clim((amin, amax))
             self.draw()
-        
-    def updateBhLoc(self, f):
+
+    def update_bh_loc(self, f):
         if self.bh1 is None:
             self.bh1, = self.axes.plot(f.x, f.y, 'k*', mfc='r', ms=20)
         else:
             self.bh1.set_data(f.x, f.y)
         self.draw()
 
-    def updateBhLocs(self, forages, visible):
+    def update_bh_locs(self, forages, visible):
         if forages is None:
             return
         if self.allbh is None:
@@ -216,14 +215,15 @@ class MapCanvas(MyMplCanvas):
             for n in range(len(forages)):
                 x[n] = forages[n].x
                 y[n] = forages[n].y
-                 
+
             self.allbh, = self.axes.plot(x, y, 'ko', mfc=[0.5, 0.5, 0.5, 0.5], picker=2)
-             
-        self.allbh.set_visible(visible)                
+
+        self.allbh.set_visible(visible)
         self.draw()
-            
+
+
 class LachenbruchCanvas(MyMplCanvas):
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.l = None
@@ -242,15 +242,16 @@ class LachenbruchCanvas(MyMplCanvas):
             self.l.set_data(T, z)
             self.axes.relim()
             self.axes.autoscale_view()
-            
+
             self.t.set_text(title)
-            
+
         self.draw()
+
 
 class BoreholeData(QGroupBox):
     def __init__(self):
         super().__init__('Boreholes')
-        
+
         self.bhlist = QComboBox()
         self.down = QPushButton('\u21E6')
         self.down.setMaximumWidth(35)
@@ -266,7 +267,7 @@ class BoreholeData(QGroupBox):
         self.Q0 = QComboBox()
         self.A = QComboBox()
         self.k = QComboBox()
-        
+
         il = QHBoxLayout()
         il.addWidget(QLabel('Q0'))
         il.addWidget(self.Q0)
@@ -274,45 +275,43 @@ class BoreholeData(QGroupBox):
         il.addWidget(self.A)
         il.addWidget(QLabel('k'))
         il.addWidget(self.k)
-        
+
         infos.setLayout(il)
 
         sims = QFrame()
         sims.setFrameStyle(QFrame.Panel | QFrame.Sunken)
         self.showAsim = QPushButton('A')
         self.showksim = QPushButton('k')
-        
+
         sl = QHBoxLayout()
         sl.addWidget(QLabel('Simulations'))
         sl.addWidget(self.showAsim)
         sl.addWidget(self.showksim)
-        
+
         sims.setLayout(sl)
 
         gl = QGridLayout()
-        
-        gl.addWidget(self.bhlist,0,0)
-        gl.addWidget(infos,0,1)
-        gl.addWidget(self.down,0,2)
-        gl.addWidget(self.up,0,3)
+
+        gl.addWidget(self.bhlist, 0, 0)
+        gl.addWidget(infos, 0, 1)
+        gl.addWidget(self.down, 0, 2)
+        gl.addWidget(self.up, 0, 3)
         gl.addWidget(self.show, 0, 4)
         gl.addWidget(self.zb_sat, 1, 0)
         gl.addWidget(sims, 1, 1)
-        gl.addWidget(self.offshore, 1,4)
+        gl.addWidget(self.offshore, 1, 4)
         self.setLayout(gl)
 
-    def setList(self, forages):
-        
+    def set_list(self, forages):
         self.bhlist.clear()
         for f in forages:
             self.bhlist.addItem(f.site_name)
-        
-        
+
 
 class SpectrumParams(QGroupBox):
     def __init__(self):
         super().__init__('Spectrum')
-        
+
         self.type = QComboBox()
         self.type.addItems(('Radial', 'Azimuthal'))
         self.detrend = QComboBox()
@@ -327,36 +326,38 @@ class SpectrumParams(QGroupBox):
         self.cdecim.setValidator(QIntValidator())
         self.kcut = QLineEdit(locale.toString(0.0, format='f', precision=1))
         self.kcut.setValidator(QDoubleValidator())
-#        self.winsize.setMinimumWidth(75)
+        #        self.winsize.setMinimumWidth(75)
         self.log = QCheckBox('Log scale')
         self.log.setChecked(True)
         self.log.setToolTip('Display spectrum in log scale')
-        self.lspace_cbox = QCheckBox('Interp. in log space')
+        self.lspace_cbox = QCheckBox('Ring width in log space')
         self.lspace_cbox.setChecked(False)
+        self.lspace_cbox.setToolTip('Compute spectrum along rings of logarithmically growing width, \n\
+which produces a radial spectrum evenly distributed on a log scale')
         self.lspace_edit = QLineEdit('50')
         self.lspace_edit.setValidator(QIntValidator())
-        self.lspace_edit.setToolTip('Number of points for interpolation')
-        
+        self.lspace_edit.setToolTip('Number of points of spectrum')
+
         self.estiml = QLabel('Estimator')
         self.estimator = QComboBox()
-        self.estimator.addItems(('FFT','Maximum Entropy (Srinivasa)', 'Maximum Entropy (Lim-Malik)'))
-#        self.estimator.addItems(('FFT','Maximum Entropy'))
+        self.estimator.addItems(('FFT', 'Maximum Entropy (Srinivasa)', 'Maximum Entropy (Lim-Malik)'))
+        #        self.estimator.addItems(('FFT','Maximum Entropy'))
         self.estimator.setMaximumWidth(200)
-        self.memest =  QComboBox()
+        self.memest = QComboBox()
         self.memest.addItems(('FFT', 'ARMA'))
         self.order = QLineEdit('15')
         self.order.setValidator(QIntValidator())
         self.orderl = QLabel('MEM order')
         self.orderl.setAlignment(Qt.AlignRight)
-        
+
         self.memest.setVisible(False)
         self.order.setVisible(False)
         self.orderl.setVisible(False)
-        
+
         self.paddingl = QLabel('Zero padding')
         self.padding = QLineEdit('0')
         self.padding.setValidator(QIntValidator())
-        
+
         gl = QGridLayout()
         gl.addWidget(self.type, 0, 0, 1, 2)
         gl.addWidget(self.lspace_cbox, 0, 4, 1, 2)
@@ -370,7 +371,7 @@ class SpectrumParams(QGroupBox):
         gl.addWidget(taperl, 1, 4)
         gl.addWidget(self.taperwin, 1, 5)
         gl.addWidget(self.log, 1, 6)
-        
+
         gl.addWidget(QLabel('Casc. decimation (npts)'), 2, 0, 1, 2)
         gl.addWidget(self.cdecim, 2, 2)
         gl.addWidget(QLabel('High-k cutoff (rad/km)'), 2, 4, 1, 2)
@@ -383,57 +384,58 @@ class SpectrumParams(QGroupBox):
         gl.addWidget(self.order, 3, 6)
         gl.addWidget(self.paddingl, 3, 5)
         gl.addWidget(self.padding, 3, 6)
-        
+
         self.setLayout(gl)
-        
+
+
 class MausParams(QGroupBox):
     def __init__(self):
         super().__init__('Maus Model Parameters')
-        
+
         self.bbeta = (1.0, 6.0)
         self.bzt = (0.0, 5.0)
         self.bdz = (5.0, 150.0)
         self.bC = (3.0, 30.0)
-        
-        self.beta_fac = int(100*(0.00001+self.bbeta[1]-self.bbeta[0]))
-        self.zt_fac = int(10*(0.00001+self.bzt[1]-self.bzt[0]))
-        self.dz_fac = int(10*(0.00001+self.bdz[1]-self.bdz[0]))
-        self.C_fac = int(10*(0.00001+self.bC[1]-self.bC[0]))
-        
-        self.initUI()
-        
-    def initUI(self):
+
+        self.beta_fac = int(100 * (0.00001 + self.bbeta[1] - self.bbeta[0]))
+        self.zt_fac = int(10 * (0.00001 + self.bzt[1] - self.bzt[0]))
+        self.dz_fac = int(10 * (0.00001 + self.bdz[1] - self.bdz[0]))
+        self.C_fac = int(10 * (0.00001 + self.bC[1] - self.bC[0]))
+
+        self.init_ui()
+
+    def init_ui(self):
         gl = QGridLayout()
-        
+
         beta = 3.0
         zt = 1.0
         dz = 20.0
         C = 25.0
-        
+
         self.betasl = QSlider(Qt.Horizontal)
         self.betasl.setMinimumWidth(100)
         self.betasl.setMaximum(self.beta_fac)
-        val = int((beta-self.bbeta[0])/(self.bbeta[1]-self.bbeta[0]) * self.beta_fac)
+        val = int((beta - self.bbeta[0]) / (self.bbeta[1] - self.bbeta[0]) * self.beta_fac)
         self.betasl.setValue(val)
-        
-        self.ztsl = QSlider(Qt.Horizontal)  
+
+        self.ztsl = QSlider(Qt.Horizontal)
         self.ztsl.setMinimumWidth(100)
         self.ztsl.setMaximum(self.zt_fac)
-        val = int((zt-self.bzt[0])/(self.bzt[1]-self.bzt[0]) * self.zt_fac)
+        val = int((zt - self.bzt[0]) / (self.bzt[1] - self.bzt[0]) * self.zt_fac)
         self.ztsl.setValue(val)
-        
+
         self.dzsl = QSlider(Qt.Horizontal)
         self.dzsl.setMinimumWidth(100)
         self.dzsl.setMaximum(self.dz_fac)
-        val = int((dz-self.bdz[0])/(self.bdz[1]-self.bdz[0]) * self.dz_fac)
+        val = int((dz - self.bdz[0]) / (self.bdz[1] - self.bdz[0]) * self.dz_fac)
         self.dzsl.setValue(val)
-        
+
         self.Csl = QSlider(Qt.Horizontal)
         self.Csl.setMinimumWidth(100)
         self.Csl.setMaximum(self.C_fac)
-        val = int((C-self.bC[0])/(self.bC[1]-self.bC[0]) * self.C_fac)
+        val = int((C - self.bC[0]) / (self.bC[1] - self.bC[0]) * self.C_fac)
         self.Csl.setValue(val)
-                
+
         self.betaed = QLineEdit(locale.toString(beta, format='f', precision=2))
         self.betaed.setMinimumWidth(75)
         self.betaed.setValidator(QDoubleValidator())
@@ -446,7 +448,7 @@ class MausParams(QGroupBox):
         self.Ced = QLineEdit(locale.toString(C, format='f', precision=1))
         self.Ced.setMinimumWidth(75)
         self.Ced.setValidator(QDoubleValidator())
-        
+
         self.betac = QCheckBox()
         self.ztc = QCheckBox()
         self.dzc = QCheckBox()
@@ -455,7 +457,7 @@ class MausParams(QGroupBox):
         self.lfc.addItem('No weighting')
         self.lfc.addItem('Low frequency weighting')
         self.lfc.addItem('Variance weighting')
-        
+
         self.beta_lb = QLineEdit(locale.toString(1.5, format='f', precision=1))
         self.beta_lb.setEnabled(False)
         self.beta_lb.setValidator(QDoubleValidator())
@@ -480,115 +482,114 @@ class MausParams(QGroupBox):
         self.C_ub = QLineEdit(locale.toString(50.0, format='f', precision=1))
         self.C_ub.setEnabled(False)
         self.C_ub.setValidator(QDoubleValidator())
-        
+
         optimfr = QGroupBox('Optimization method')
-        
+
         self.optim = QComboBox()
         self.optim.addItem('Simplex', 'fmin')
         self.optim.addItem('least-squares', 'ls')
-        self.optim.currentIndexChanged.connect(self.optimChanged)
-        
+        self.optim.currentIndexChanged.connect(self.optim_changed)
+
         ol = QVBoxLayout()
         ol.addWidget(self.optim)
-        
+
         optimfr.setLayout(ol)
-        
-        
+
         self.fit2step = QPushButton('2-step fit')
         self.fit2step.setToolTip('Find first β and C, then ∆z and zt')
         self.fit = QPushButton('Fit to spectrum')
-        
-        self.betasl.valueChanged.connect(self.betaslChanged)
-        self.ztsl.valueChanged.connect(self.ztslChanged)
-        self.dzsl.valueChanged.connect(self.dzslChanged)
-        self.Csl.valueChanged.connect(self.CslChanged)
-        
-        self.betaed.editingFinished.connect(self.betaeChanged)
-        self.zted.editingFinished.connect(self.zteChanged)
-        self.dzed.editingFinished.connect(self.dzeChanged)
-        self.Ced.editingFinished.connect(self.CeChanged)
-        
+
+        self.betasl.valueChanged.connect(self.betasl_changed)
+        self.ztsl.valueChanged.connect(self.ztsl_changed)
+        self.dzsl.valueChanged.connect(self.dzsl_changed)
+        self.Csl.valueChanged.connect(self.Csl_changed)
+
+        self.betaed.editingFinished.connect(self.betae_changed)
+        self.zted.editingFinished.connect(self.zte_changed)
+        self.dzed.editingFinished.connect(self.dze_changed)
+        self.Ced.editingFinished.connect(self.Ce_changed)
+
         gl.addWidget(QLabel('Beta'), 1, 0)
         gl.addWidget(QLabel('zt (km)'), 2, 0)
         gl.addWidget(QLabel('∆z (km)'), 3, 0)
         gl.addWidget(QLabel('C'), 4, 0)
-        
-        gl.addWidget(self.betasl,1,1)
-        gl.addWidget(self.ztsl,2,1)
-        gl.addWidget(self.dzsl,3,1)
-        gl.addWidget(self.Csl,4,1)
-        
-        gl.addWidget(self.betaed,1,2)
-        gl.addWidget(self.zted,2,2)
-        gl.addWidget(self.dzed,3,2)
-        gl.addWidget(self.Ced,4,2)
-        
-        gl.addWidget(QLabel('Fixed'),0,3)
-        gl.addWidget(self.betac,1,3, Qt.AlignCenter)
-        gl.addWidget(self.ztc,2,3, Qt.AlignCenter)
-        gl.addWidget(self.dzc,3,3, Qt.AlignCenter)
-        gl.addWidget(self.Cc,4,3, Qt.AlignCenter)
-        
-        gl.addWidget(QLabel('Lower'),0,4)
-        gl.addWidget(QLabel('Upper'),0,5)
-        
-        gl.addWidget(self.beta_lb,1,4)
-        gl.addWidget(self.beta_ub,1,5)
-        gl.addWidget(self.zt_lb,2,4)
-        gl.addWidget(self.zt_ub,2,5)
-        gl.addWidget(self.dz_lb,3,4)
-        gl.addWidget(self.dz_ub,3,5)
-        gl.addWidget(self.C_lb,4,4)
-        gl.addWidget(self.C_ub,4,5)
-        
-        gl.addWidget(optimfr,0,6,2,1)
-        gl.addWidget(self.lfc,2,6)
-        gl.addWidget(self.fit2step,3,6)
-        gl.addWidget(self.fit,4,6)
-        
+
+        gl.addWidget(self.betasl, 1, 1)
+        gl.addWidget(self.ztsl, 2, 1)
+        gl.addWidget(self.dzsl, 3, 1)
+        gl.addWidget(self.Csl, 4, 1)
+
+        gl.addWidget(self.betaed, 1, 2)
+        gl.addWidget(self.zted, 2, 2)
+        gl.addWidget(self.dzed, 3, 2)
+        gl.addWidget(self.Ced, 4, 2)
+
+        gl.addWidget(QLabel('Fixed'), 0, 3)
+        gl.addWidget(self.betac, 1, 3, Qt.AlignCenter)
+        gl.addWidget(self.ztc, 2, 3, Qt.AlignCenter)
+        gl.addWidget(self.dzc, 3, 3, Qt.AlignCenter)
+        gl.addWidget(self.Cc, 4, 3, Qt.AlignCenter)
+
+        gl.addWidget(QLabel('Lower'), 0, 4)
+        gl.addWidget(QLabel('Upper'), 0, 5)
+
+        gl.addWidget(self.beta_lb, 1, 4)
+        gl.addWidget(self.beta_ub, 1, 5)
+        gl.addWidget(self.zt_lb, 2, 4)
+        gl.addWidget(self.zt_ub, 2, 5)
+        gl.addWidget(self.dz_lb, 3, 4)
+        gl.addWidget(self.dz_ub, 3, 5)
+        gl.addWidget(self.C_lb, 4, 4)
+        gl.addWidget(self.C_ub, 4, 5)
+
+        gl.addWidget(optimfr, 0, 6, 2, 1)
+        gl.addWidget(self.lfc, 2, 6)
+        gl.addWidget(self.fit2step, 3, 6)
+        gl.addWidget(self.fit, 4, 6)
+
         self.setLayout(gl)
-        
-    def betaslChanged(self):
+
+    def betasl_changed(self):
         val = self.betasl.value()
-        val = self.bbeta[0] + (1.0*val)/self.beta_fac * (self.bbeta[1]-self.bbeta[0])
+        val = self.bbeta[0] + (1.0 * val) / self.beta_fac * (self.bbeta[1] - self.bbeta[0])
         self.betaed.setText(locale.toString(val, format='f', precision=2))
 
-    def ztslChanged(self):
+    def ztsl_changed(self):
         val = self.ztsl.value()
-        val = self.bzt[0] + (1.0*val)/self.zt_fac * (self.bzt[1]-self.bzt[0])
+        val = self.bzt[0] + (1.0 * val) / self.zt_fac * (self.bzt[1] - self.bzt[0])
         self.zted.setText(locale.toString(val, format='f', precision=1))
 
-    def dzslChanged(self):
+    def dzsl_changed(self):
         val = self.dzsl.value()
-        val = self.bdz[0] + (1.0*val)/self.dz_fac * (self.bdz[1]-self.bdz[0])
+        val = self.bdz[0] + (1.0 * val) / self.dz_fac * (self.bdz[1] - self.bdz[0])
         self.dzed.setText(locale.toString(val, format='f', precision=1))
 
-    def CslChanged(self):
+    def Csl_changed(self):
         val = self.Csl.value()
-        val = self.bC[0] + (1.0*val)/self.C_fac * (self.bC[1]-self.bC[0])
+        val = self.bC[0] + (1.0 * val) / self.C_fac * (self.bC[1] - self.bC[0])
         self.Ced.setText(locale.toString(val, format='f', precision=1))
-        
-    def betaeChanged(self):
+
+    def betae_changed(self):
         val = locale.toDouble(self.betaed.text())[0]
-        val = int((val-self.bbeta[0])/(self.bbeta[1]-self.bbeta[0]) * self.beta_fac)
+        val = int((val - self.bbeta[0]) / (self.bbeta[1] - self.bbeta[0]) * self.beta_fac)
         self.betasl.setValue(val)
 
-    def zteChanged(self):
+    def zte_changed(self):
         val = locale.toDouble(self.zted.text())[0]
-        val = int((val-self.bzt[0])/(self.bzt[1]-self.bzt[0]) * self.zt_fac)
+        val = int((val - self.bzt[0]) / (self.bzt[1] - self.bzt[0]) * self.zt_fac)
         self.ztsl.setValue(val)
 
-    def dzeChanged(self):
+    def dze_changed(self):
         val = locale.toDouble(self.dzed.text())[0]
-        val = int((val-self.bdz[0])/(self.bdz[1]-self.bdz[0]) * self.dz_fac)
+        val = int((val - self.bdz[0]) / (self.bdz[1] - self.bdz[0]) * self.dz_fac)
         self.dzsl.setValue(val)
 
-    def CeChanged(self):
+    def Ce_changed(self):
         val = locale.toDouble(self.Ced.text())[0]
-        val = int((val-self.bC[0])/(self.bC[1]-self.bC[0]) * self.C_fac)
+        val = int((val - self.bC[0]) / (self.bC[1] - self.bC[0]) * self.C_fac)
         self.Csl.setValue(val)
-        
-    def optimChanged(self, index):
+
+    def optim_changed(self, index):
         self.beta_lb.setEnabled(index)
         self.beta_ub.setEnabled(index)
         self.zt_lb.setEnabled(index)
@@ -597,15 +598,16 @@ class MausParams(QGroupBox):
         self.dz_ub.setEnabled(index)
         self.C_lb.setEnabled(index)
         self.C_ub.setEnabled(index)
-    
+
     @property
     def method(self):
         return self.optim.currentData()
-        
+
+
 class LachenbruchParams(QGroupBox):
     def __init__(self):
         super().__init__('Lachenbruch and Sass Model Parameters')
-        
+
         hbox = QHBoxLayout()
         hbox.addWidget(QLabel('Characteristic depth (km)'))
         self.D = QLineEdit(locale.toString(7.74, format='f', precision=2))
@@ -625,22 +627,22 @@ class LachenbruchParams(QGroupBox):
         self.k = QLineEdit(locale.toString(4.0, format='f', precision=1))
         self.k.setValidator(QDoubleValidator())
         hbox.addWidget(self.k)
-        
+
         self.setLayout(hbox)
+
 
 class ProjSelection(QDialog):
     def __init__(self, parent=None):
         super(ProjSelection, self).__init__(parent)
         self.setWindowTitle('Grid Projection parameters')
         self.result = ''
-        #================================================= ===============================
-        # listbox
-        #================================================= ===============================
+
         self.listWidget = QListWidget()
-        
-        item_ls = ('Québec : +proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
-                   'DNAG : +proj=tmerc +k_0=0.926 _lat_0=0.0 +lon_0=-100.0 +a=6371204.0 +b=6371204.0 +x_0=0 +y_0=0 +units=m +no_defs')
-        
+
+        item_ls = (
+        'Québec : +proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+        'DNAG : +proj=tmerc +k_0=0.926 _lat_0=0.0 +lon_0=-100.0 +a=6371204.0 +b=6371204.0 +x_0=0 +y_0=0 +units=m +no_defs')
+
         for item in item_ls:
             w_item = QListWidgetItem(item)
             self.listWidget.addItem(w_item)
@@ -648,34 +650,29 @@ class ProjSelection(QDialog):
         self.listWidget.itemActivated.connect(self.onDoubleClick)
         layout = QGridLayout()
         row = 0
-        layout.addWidget(QLabel('Predefined proj4 strings'),row,0)
+        layout.addWidget(QLabel('Predefined proj4 strings'), row, 0)
         row += 1
-        layout.addWidget(self.listWidget,row,0,1,3) #col span=1, row span=3
-        
+        layout.addWidget(self.listWidget, row, 0, 1, 3)  # col span=1, row span=3
+
         row += 1
-        layout.addWidget(QLabel('Custom proj4 string'),row,0)
+        layout.addWidget(QLabel('Custom proj4 string'), row, 0)
         self.proj4string = QLineEdit()
         self.proj4string.editingFinished.connect(self.projEdited)
         row += 1
-        layout.addWidget(self.proj4string,row,0,1,3)
-        #================================================= ===============================
-        # OK, Cancel
-        #================================================= ===============================
-        row +=1
+        layout.addWidget(self.proj4string, row, 0, 1, 3)
+
+        row += 1
         self.but_ok = QPushButton('OK')
-        layout.addWidget(self.but_ok ,row,1)
+        layout.addWidget(self.but_ok, row, 1)
         self.but_ok.clicked.connect(self.onOk)
-        
+
         self.but_cancel = QPushButton('Cancel')
-        layout.addWidget(self.but_cancel ,row,2)
+        layout.addWidget(self.but_cancel, row, 2)
         self.but_cancel.clicked.connect(self.onCancel)
-        
-        #================================================= ===============================
-        #
-        #================================================= ===============================
+
         self.setLayout(layout)
         self.setGeometry(300, 200, 560, 250)
-    
+
     def onSingleClick(self, item):
         val = item.text().split(':')
         if len(val) == 2:
@@ -693,73 +690,70 @@ class ProjSelection(QDialog):
             self.result = val[0]
         self.accept()
         return self.result
-    
+
     def projEdited(self):
         self.result = self.proj4string.text()
-    
+
     def onOk(self):
         self.accept()
         return self.result
-    
+
     def onCancel(self):
         self.reject()
-    
+
     def getValue(self):
         return self.result
 
 
-
-
 class PyCPD(QMainWindow):
-    
+
     def __init__(self):
         super().__init__()
-        
+
         self.forage = None
         self.forages = None
         self.grid = None
-    
+
         self.mag_path = os.path.expanduser('~/')
         self.db_path = os.path.expanduser('~/')
-        
-        self.initUI()
-        
-        
-    def initUI(self):
-        
+
+        self.init_ui()
+
+    def init_ui(self):
+
         createDbAction = QAction('Create Borehole Database ...', self)
         createDbAction.setShortcut('Ctrl+D')
         createDbAction.setStatusTip('Create borehole data')
-        createDbAction.triggered.connect(self.createDb)
+        createDbAction.triggered.connect(self.create_db)
 
         openDbAction = QAction('Open Borehole Database ...', self)
         openDbAction.setShortcut('Ctrl+O')
         openDbAction.setStatusTip('Load borehole data')
-        openDbAction.triggered.connect(self.loadDb)
+        openDbAction.triggered.connect(self.load_db)
 
         saveDbAction = QAction('Save Borehole Database ...', self)
         saveDbAction.setShortcut('Ctrl+Shift+S')
         saveDbAction.setStatusTip('Save borehole data')
-        saveDbAction.triggered.connect(self.saveDb)
+        saveDbAction.triggered.connect(self.save_db)
 
         loadMapAction = QAction('Load Mag Data ...', self)
         loadMapAction.setShortcut('Ctrl+M')
         loadMapAction.setStatusTip('Load Mag data')
-        loadMapAction.triggered.connect(self.loadMag)
-        
+        loadMapAction.triggered.connect(self.load_mag)
+
         loadProjAction = QAction('Load Project ...', self)
         loadProjAction.setShortcut('Ctrl+L')
-        loadProjAction.triggered.connect(self.loadProject)
+        loadProjAction.triggered.connect(self.load_project)
 
         saveProjAction = QAction('Save Project ...', self)
         saveProjAction.setShortcut('Ctrl+S')
-        saveProjAction.triggered.connect(self.saveProject)
+        saveProjAction.triggered.connect(self.save_project)
 
-        exitAction = QAction('Exit', self)        
+        exitAction = QAction('Exit', self)
         exitAction.setShortcut('Ctrl+Q')
         exitAction.setStatusTip('Exit application')
         exitAction.triggered.connect(qApp.quit)
-        
+
         self.statusBar()
 
         menubar = self.menuBar()
@@ -771,18 +765,18 @@ class PyCPD(QMainWindow):
         fileMenu.addAction(loadProjAction)
         fileMenu.addAction(saveProjAction)
         fileMenu.addAction(exitAction)
-        
+
         mw = QFrame()
         self.setCentralWidget(mw)
-        
+
         lw = QWidget()
         rw = QWidget()
-        
+
         self.bh = BoreholeData()
         self.locmap = MapCanvas(self)
         self.locmap.setMinimumSize(800, 550)
         toolbar = NavigationToolbar(self.locmap, self)
-        
+
         mapctrl = QFrame()
         mcl = QHBoxLayout()
         mcl.addStretch()
@@ -794,82 +788,79 @@ class PyCPD(QMainWindow):
         self.amin.setMaximumWidth(100)
         mcl.addWidget(self.amin)
         amaxl = QLabel('A max')
-        amaxl.setAlignment(Qt.AlignRight)        
+        amaxl.setAlignment(Qt.AlignRight)
         mcl.addWidget(amaxl)
         self.amax = QLineEdit(locale.toString(self.locmap.amax))
         self.amax.setValidator(QDoubleValidator())
         self.amax.setMaximumWidth(100)
         mcl.addWidget(self.amax)
         mcl.addStretch()
-        self.amin.editingFinished.connect(self.achanged)
-        self.amax.editingFinished.connect(self.achanged)
-        
+        self.amin.editingFinished.connect(self.a_changed)
+        self.amax.editingFinished.connect(self.a_changed)
+
         mapctrl.setLayout(mcl)
-        
+
         self.splot = SpectrumCanvas(self)
         self.splot.setMinimumSize(500, 450)
         self.lachplot = LachenbruchCanvas(self)
         self.lachplot.setMinimumSize(500, 450)
-        
+
         self.plots = QTabWidget()
         self.plots.addTab(self.splot, 'Spectrum')
         self.plots.addTab(self.lachplot, 'T vs z')
-        
-        
+
         self.sp = SpectrumParams()
         self.mp = MausParams()
         self.lach = LachenbruchParams()
 
+        self.bh.bhlist.currentIndexChanged.connect(self.bh_changed)
+        self.bh.down.clicked.connect(self.bh_down)
+        self.bh.up.clicked.connect(self.bh_up)
+        self.bh.show.stateChanged.connect(self.show_bh)
+        self.bh.showAsim.clicked.connect(self.show_Asim)
+        self.bh.showksim.clicked.connect(self.show_ksim)
+        self.bh.Q0.currentIndexChanged.connect(self.plot_lachenbruch)
+        self.bh.A.currentIndexChanged.connect(self.plot_lachenbruch)
+        self.bh.k.currentIndexChanged.connect(self.plot_lachenbruch)
 
-        self.bh.bhlist.currentIndexChanged.connect(self.bhChanged)
-        self.bh.down.clicked.connect(self.bhDown)
-        self.bh.up.clicked.connect(self.bhUp)
-        self.bh.show.stateChanged.connect(self.showBh)
-        self.bh.showAsim.clicked.connect(self.showAsim)
-        self.bh.showksim.clicked.connect(self.showksim)
-        self.bh.Q0.currentIndexChanged.connect(self.plotLachenbruch)
-        self.bh.A.currentIndexChanged.connect(self.plotLachenbruch)
-        self.bh.k.currentIndexChanged.connect(self.plotLachenbruch)
-        
-        self.locmap.mapClicked.connect(self.computeSpectrum)
-        self.locmap.bhRightClicked.connect(self.bhChangedOnMap)
-        self.locmap.bhClicked.connect(self.bhStatus)
-        
-        self.mp.betasl.valueChanged.connect(self.updateSpectrum)
-        self.mp.ztsl.valueChanged.connect(self.updateSpectrum)
-        self.mp.dzsl.valueChanged.connect(self.updateSpectrum)
-        self.mp.Csl.valueChanged.connect(self.updateSpectrum)
-        self.mp.betaed.editingFinished.connect(self.updateSpectrum)
-        self.mp.zted.editingFinished.connect(self.updateSpectrum)
-        self.mp.dzed.editingFinished.connect(self.updateSpectrum)
-        self.mp.Ced.editingFinished.connect(self.updateSpectrum)
-        self.mp.fit2step.clicked.connect(self.fitSpec2step)
-        self.mp.fit.clicked.connect(self.fitSpectrum)
+        self.locmap.mapClicked.connect(self.compute_spectrum)
+        self.locmap.bhRightClicked.connect(self.bh_changed_on_map)
+        self.locmap.bhClicked.connect(self.bh_status)
 
-        self.sp.type.currentIndexChanged.connect(self.computeSpectrum)
-        self.sp.detrend.currentIndexChanged.connect(self.computeSpectrum)
-        self.sp.log.stateChanged.connect(self.updateSpectrum)
-        self.sp.taperwin.currentIndexChanged.connect(self.computeSpectrum)
-        self.sp.winsize.editingFinished.connect(self.computeSpectrum)
-        self.sp.estimator.currentIndexChanged.connect(self.computeSpectrum)
-        self.sp.memest.currentIndexChanged.connect(self.computeSpectrum)
-        self.sp.order.editingFinished.connect(self.computeSpectrum)
-        self.sp.padding.editingFinished.connect(self.computeSpectrum)
-        self.sp.cdecim.editingFinished.connect(self.computeSpectrum)
-        self.sp.kcut.editingFinished.connect(self.computeSpectrum)
-        self.sp.lspace_cbox.stateChanged.connect(self.computeSpectrum)
-        self.sp.lspace_edit.editingFinished.connect(self.computeSpectrum)
-        
-        self.lach.D.editingFinished.connect(self.plotLachenbruch)
-        self.lach.override.stateChanged.connect(self.plotLachenbruch)
-        self.lach.Q0.editingFinished.connect(self.lachEdited)
-        self.lach.A.editingFinished.connect(self.lachEdited)
-        self.lach.k.editingFinished.connect(self.lachEdited)
+        self.mp.betasl.valueChanged.connect(self.update_spectrum)
+        self.mp.ztsl.valueChanged.connect(self.update_spectrum)
+        self.mp.dzsl.valueChanged.connect(self.update_spectrum)
+        self.mp.Csl.valueChanged.connect(self.update_spectrum)
+        self.mp.betaed.editingFinished.connect(self.update_spectrum)
+        self.mp.zted.editingFinished.connect(self.update_spectrum)
+        self.mp.dzed.editingFinished.connect(self.update_spectrum)
+        self.mp.Ced.editingFinished.connect(self.update_spectrum)
+        self.mp.fit2step.clicked.connect(self.fit_spectrum_2step)
+        self.mp.fit.clicked.connect(self.fit_spectrum)
 
+        self.sp.type.currentIndexChanged.connect(self.compute_spectrum)
+        self.sp.detrend.currentIndexChanged.connect(self.compute_spectrum)
+        self.sp.log.stateChanged.connect(self.update_spectrum)
+        self.sp.taperwin.currentIndexChanged.connect(self.compute_spectrum)
+        self.sp.winsize.editingFinished.connect(self.compute_spectrum)
+        self.sp.estimator.currentIndexChanged.connect(self.compute_spectrum)
+        self.sp.memest.currentIndexChanged.connect(self.compute_spectrum)
+        self.sp.order.editingFinished.connect(self.compute_spectrum)
+        self.sp.padding.editingFinished.connect(self.compute_spectrum)
+        self.sp.cdecim.editingFinished.connect(self.compute_spectrum)
+        self.sp.kcut.editingFinished.connect(self.compute_spectrum)
+        self.sp.lspace_cbox.stateChanged.connect(self.compute_spectrum)
+        self.sp.lspace_edit.editingFinished.connect(self.compute_spectrum)
+
+        self.lach.D.editingFinished.connect(self.plot_lachenbruch)
+        self.lach.override.stateChanged.connect(self.plot_lachenbruch)
+        self.lach.Q0.editingFinished.connect(self.lachenbruch_edited)
+        self.lach.A.editingFinished.connect(self.lachenbruch_edited)
+        self.lach.k.editingFinished.connect(self.lachenbruch_edited)
 
         hbox = QHBoxLayout()
         hbox.setContentsMargins(0, 0, 0, 0)
-        #hbox.addStretch(1)
+        # hbox.addStretch(1)
         hbox.addWidget(lw)
         hbox.addWidget(rw)
 
@@ -880,94 +871,93 @@ class PyCPD(QMainWindow):
         rvbox1.addWidget(mapctrl)
 
         rvbox2 = QVBoxLayout()
-        #vbox.addStretch(1)
+        # vbox.addStretch(1)
         rvbox2.addWidget(self.plots)
         rvbox2.addWidget(self.sp)
         rvbox2.addWidget(self.mp)
         rvbox2.addWidget(self.lach)
-        
+
         lw.setLayout(rvbox1)
         rw.setLayout(rvbox2)
-        
+
         mw.setLayout(hbox)
-        
+
         self.setGeometry(100, 100, 300, 150)
         self.setWindowTitle('Curie-Point Depth Calculator')
         self.show()
-        
-    def achanged(self):
+
+    def a_changed(self):
         if self.locmap is None:
             return
         amin = locale.toDouble(self.amin.text())[0]
         amax = locale.toDouble(self.amax.text())[0]
         if amin > amax:
             QMessageBox.warning(self, 'Warning', 'min value larger than max value, figure not updated', QMessageBox.Ok)
-            self.amin.setText((locale.toString(amax-1)))
+            self.amin.setText((locale.toString(amax - 1)))
             return
         self.locmap.set_clim(amin, amax)
-        
-        
-    def bhDown(self):
+
+    def bh_down(self):
         if self.forages is None:
             return
         if self.bh.bhlist.currentIndex() > 0:
-            self.bh.bhlist.setCurrentIndex(self.bh.bhlist.currentIndex()-1)
-        
-    def bhUp(self):
+            self.bh.bhlist.setCurrentIndex(self.bh.bhlist.currentIndex() - 1)
+
+    def bh_up(self):
         if self.forages is None:
             return
-        if self.bh.bhlist.currentIndex() < len(self.forages)-1:
-            self.bh.bhlist.setCurrentIndex(1+self.bh.bhlist.currentIndex())
-        
-    def bhChangedOnMap(self, index):
+        if self.bh.bhlist.currentIndex() < len(self.forages) - 1:
+            self.bh.bhlist.setCurrentIndex(1 + self.bh.bhlist.currentIndex())
+
+    def bh_changed_on_map(self, index):
         self.forage = None
         self.bh.bhlist.setCurrentIndex(index)
-        
-    def bhStatus(self, index):
+
+    def bh_status(self, index):
         self.statusBar().clearMessage()
-        self.statusBar().showMessage('Borehole: '+self.forages[index].site_name)
-        
-    def bhChanged(self):
+        self.statusBar().showMessage('Borehole: ' + self.forages[index].site_name)
+
+    def bh_changed(self):
         self.forage = None
-        self.computeSpectrum()
-        self.plotLachenbruch()
+        self.compute_spectrum()
+        self.plot_lachenbruch()
         if self.forages is not None:
             f = self.forages[self.bh.bhlist.currentIndex()]
 
             self.bh.Q0.clear()
             for q in f.Q0:
                 self.bh.Q0.addItem(locale.toString(q))
-            
+
             self.bh.A.clear()
-            if len(f.A)>0:
+            if len(f.A) > 0:
                 for a in f.A:
                     self.bh.A.addItem(locale.toString(a))
-            
+
             self.bh.k.clear()
-            if len(f.k)>0:
+            if len(f.k) > 0:
                 for k in f.k:
                     self.bh.k.addItem(locale.toString(k))
-                    
+
             if f.offshore:
                 self.bh.offshore.setText('Offshore, depth = {0:g} m'.format(f.bathy))
             else:
                 self.bh.offshore.setText('On land')
-                
+
             if f.zb_sat is not None:
                 self.bh.zb_sat.setText('Mag. crustal thick. : {0:5.1f} km'.format(f.zb_sat))
-            
-            self.locmap.updateBhLoc(f)
-                        
-    def showBh(self):
-        self.locmap.updateBhLocs(self.forages, self.bh.show.isChecked())
-    
-    def updateSpectrum(self):
+
+            self.locmap.update_bh_loc(f)
+
+    def show_bh(self):
+        self.locmap.update_bh_locs(self.forages, self.bh.show.isChecked())
+
+    def update_spectrum(self):
         f = None
         if self.forage is not None:
             f = self.forage
         elif self.forages is not None:
             f = self.forages[self.bh.bhlist.currentIndex()]
-            
+
         if f is not None:
             if self.sp.type.currentIndex() == 0:
                 beta = locale.toDouble(self.mp.betaed.text())[0]
@@ -976,9 +966,9 @@ class PyCPD(QMainWindow):
                 C = locale.toDouble(self.mp.Ced.text())[0]
                 self.splot.plot(f, (beta, zt, dz, C), self.sp.log.isChecked())
             else:
-                self.splot.plot2D(f, self.sp.log.isChecked())
-            
-    def computeSpectrum(self, x=None, y=None):
+                self.splot.plot_2d(f, self.sp.log.isChecked())
+
+    def compute_spectrum(self, x=None, y=None):
         if self.grid is not None:
             if self.sp.estimator.currentIndex() == 1 or self.sp.type.currentIndex() == 1:
                 self.sp.memest.setVisible(True)
@@ -998,7 +988,7 @@ class PyCPD(QMainWindow):
                 self.sp.orderl.setVisible(False)
                 self.sp.padding.setVisible(True)
                 self.sp.paddingl.setVisible(True)
-                
+
             if self.sp.type.currentIndex() == 1:
                 self.sp.estiml.setVisible(False)
                 self.sp.estimator.setVisible(False)
@@ -1006,26 +996,25 @@ class PyCPD(QMainWindow):
                 self.sp.estiml.setVisible(True)
                 self.sp.estimator.setVisible(True)
 
-                
             f = None
             if x is not None and y is not None:
                 self.forage = cpd.Forage()
                 f = self.forage
                 f.x = x
                 f.y = y
-                
+
                 self.statusBar().clearMessage()
-                self.statusBar().showMessage('Point at '+locale.toString(f.x)+', '+locale.toString(f.y))
-                
+                self.statusBar().showMessage('Point at ' + locale.toString(f.x) + ', ' + locale.toString(f.y))
+
             elif self.forage is not None:
                 f = self.forage
             elif self.forages is not None:
                 index = self.bh.bhlist.currentIndex()
                 f = self.forages[index]
-                
+
                 self.statusBar().clearMessage()
-                self.statusBar().showMessage('Borehole no '+str(index)+': '+f.site_name)
-                
+                self.statusBar().showMessage('Borehole no ' + str(index) + ': ' + f.site_name)
+
             if f is not None:
                 ww = 1000.0 * locale.toDouble(self.sp.winsize.text())[0]
                 if self.sp.taperwin.currentIndex() == 0:
@@ -1045,23 +1034,19 @@ class PyCPD(QMainWindow):
                     logspace = int(self.sp.lspace_edit.text())
                 else:
                     logspace = 0
-            
+
                 if self.sp.type.currentIndex() == 0:
-                    f.S_r, f.k_r, f.std_r, f.ns_r, _ = self.grid.getRadialSpectrum(f.x, f.y, ww, win, detrend,
-                                                                                   mem=mem, memest=memest,
-                                                                                   order=order, kcut=kcut,
-                                                                                   cdecim=cdecim, logspace=logspace,
-                                                                                   padding=padding)
+                    f.S_r, f.k_r, f.std_r, f.ns_r, _ = self.grid.get_radial_spectrum(f.x, f.y, ww, win, detrend, mem=mem,
+                                                                                     memest=memest, order=order,
+                                                                                     kcut=kcut, cdecim=cdecim,
+                                                                                     logspace=logspace, padding=padding)
                 else:
-                    f.S_r, f.k_r, f.theta, _ = self.grid.getAzimuthalSpectrum(f.x, f.y, ww, win,
-                                                                              detrend, memest=memest,
-                                                                              order=order)
-                    
-                
-                self.updateSpectrum()
-        
-        
-    def createDb(self):
+                    f.S_r, f.k_r, f.theta, _ = self.grid.get_azimuthal_spectrum(f.x, f.y, ww, win, detrend, memest=memest,
+                                                                                order=order)
+
+                self.update_spectrum()
+
+    def create_db(self):
         if self.grid is None:
             QMessageBox.warning(self, 'Warning', 'Magnetic data should be loaded first', QMessageBox.Ok)
             return
@@ -1069,55 +1054,54 @@ class PyCPD(QMainWindow):
         if fname[0]:
             forages = []
             try:
-                df = pd.read_csv(fname[0], encoding = "ISO-8859-1")            
+                df = pd.read_csv(fname[0], encoding="ISO-8859-1")
                 for n in range(df.shape[0]):
                     f = cpd.Forage(float(df['Latitude'][n]), float(df['Longitude'][n]), self.grid.proj4string)
                     buffer = 250000.0  # 250 km buffer -> this to account for window used dto compute spectrum 
-                                        # (should allow user to change that, either in prefs or with dialog)
-                    if self.grid.inside( f, buffer ):
+                    # (should allow user to change that, either in prefs or with dialog)
+                    if self.grid.inside(f, buffer):
                         f.site_name = str(df['Site Name'][n])
                         if f in forages:
                             ind = forages.index(f)
                             f = forages[ind]
-                
-                        if not np.isnan( float(df['Heat Flow'][n]) ):
-                            f.Q0.append( float(df['Heat Flow'][n]) )
-                        if not np.isnan( float(df['Conductivity'][n]) ):
-                            f.k.append( float(df['Conductivity'][n]) )
-                        if not np.isnan( float(df['Heat Prod.'][n]) ):
-                            f.A.append( float(df['Heat Prod.'][n]) )
+
+                        if not np.isnan(float(df['Heat Flow'][n])):
+                            f.Q0.append(float(df['Heat Flow'][n]))
+                        if not np.isnan(float(df['Conductivity'][n])):
+                            f.k.append(float(df['Conductivity'][n]))
+                        if not np.isnan(float(df['Heat Prod.'][n])):
+                            f.A.append(float(df['Heat Prod.'][n]))
                         if f not in forages:
                             forages.append(f)
-                        
+
             except Exception as e:
                 QMessageBox.warning(self, 'Warning', str(e), QMessageBox.Ok)
                 return
-            
+
             self.db_path = os.path.dirname(fname[0])
             self.forages = forages
-            self.bh.setList(self.forages)
+            self.bh.set_list(self.forages)
             if len(forages) > 0:
-                ex.locmap.updateBhLoc(ex.forages[0])
+                ex.locmap.update_bh_loc(ex.forages[0])
             self.statusBar().clearMessage()
-            self.statusBar().showMessage('Database created, contains '+str(len(forages))+' boreholes')
-        
-        
-    def saveDb(self):
-        if self.forages == None:
+            self.statusBar().showMessage('Database created, contains ' + str(len(forages)) + ' boreholes')
+
+    def save_db(self):
+        if self.forages is None:
             QMessageBox.warning(self, 'Warning', 'Current database empty, nothing to save', QMessageBox.Ok)
             return
         fname = QFileDialog.getSaveFileName(self, 'Save borehole database', self.db_path, 'Database file (*.db)')
         if fname[0]:
             if fname[0][-3:] == '.db':
-                filename = fname[0][:-3] # remove extension, it is added by shelve
+                filename = fname[0][:-3]  # remove extension, it is added by shelve
             else:
                 filename = fname[0]
             db = shelve.open(filename, 'n')
             db['forages'] = self.forages
             db.close()
             self.db_path = os.path.dirname(fname[0])
-    
-    def loadDb(self):
+
+    def load_db(self):
         fname = QFileDialog.getOpenFileName(self, 'Open file', self.db_path, 'Mac OS (*.db);;Linux (*.dat)')
         if fname[0]:
             try:
@@ -1125,44 +1109,44 @@ class PyCPD(QMainWindow):
                     tmp = fname[0][:-3]
                 elif fname[1] == 'Linux (*.dat)':
                     tmp = fname[0][:-4]
-                db = shelve.open(tmp,'r')
+                db = shelve.open(tmp, 'r')
                 self.forages = db['forages']
                 db.close()
-                self.bh.setList(self.forages)
+                self.bh.set_list(self.forages)
             except IOError:
                 QMessageBox.warning(self, 'Warning', 'Error loading database', QMessageBox.Ok)
-        
+
             self.db_path = os.path.dirname(fname[0])
-        
-    def loadMag(self):
+
+    def load_mag(self):
         oldgrid = self.grid  # store current grid in case we cannot load new stuff
-        
+
         pselect = ProjSelection()
         if pselect.exec_():
             proj4string = pselect.getValue()
         else:
             return
-        
+
         fname = QFileDialog.getOpenFileName(self, 'Open file', self.mag_path, 'netcdf (*.nc *.grd);;USGS (*.SGD)')
         if fname[0]:
             try:
                 if fname[1] == 'USGS (*.SGD)':
-                    self.grig = cpd.Grid2d(proj4string)
+                    self.grid = cpd.Grid2d(proj4string)
                     self.grid.readUSGSfile(fname[0])
                 elif fname[1] == 'netcdf (*.nc *.grd)':
                     self.grid = cpd.Grid2d(proj4string)
                     self.grid.readnc(fname[0])
-                    
+
                 self.mag_path = os.path.dirname(fname[0])
-                self.locmap.drawMap(self.grid)
+                self.locmap.draw_map(self.grid)
             except RuntimeError as e:
                 QMessageBox.warning(self, 'Warning', str(e.args[0], 'utf-8'), QMessageBox.Ok)
                 self.grid = oldgrid
             except IOError:
                 QMessageBox.warning(self, 'Warning', 'Error loading mag data', QMessageBox.Ok)
                 self.grid = oldgrid
-                
-    def loadProject(self):
+
+    def load_project(self):
         fname = QFileDialog.getOpenFileName(self, 'Open file', os.path.expanduser('~/'), 'Mac OS (*.db);;Linux (*.dat)')
         if fname[0]:
             try:
@@ -1170,24 +1154,24 @@ class PyCPD(QMainWindow):
                     tmp = fname[0][:-3]
                 elif fname[1] == 'Linux (*.dat)':
                     tmp = fname[0][:-4]
-                db = shelve.open(tmp,'r')
+                db = shelve.open(tmp, 'r')
                 self.forages = db['forages']
                 self.grid = db['grid']
                 db.close()
-                self.bh.setList(self.forages)
-                ex.locmap.drawMap(ex.grid)
+                self.bh.set_list(self.forages)
+                ex.locmap.draw_map(ex.grid)
             except IOError:
                 QMessageBox.warning(self, 'Warning', 'Error loading database', QMessageBox.Ok)
-        
-    
-    def saveProject(self):
-        if self.forages == None and self.grid == None:
+
+    def save_project(self):
+        if self.forages is None and self.grid is None:
             QMessageBox.warning(self, 'Warning', 'Current project empty, nothing to save', QMessageBox.Ok)
             return
-        fname = QFileDialog.getSaveFileName(self, 'Save pycpd project', os.path.expanduser('~/'), 'Database file (*.db)')
+        fname = QFileDialog.getSaveFileName(self, 'Save pycpd project', os.path.expanduser('~/'),
+                                            'Database file (*.db)')
         if fname[0]:
             if fname[0][-3:] == '.db':
-                filename = fname[0][:-3] # remove extension, it is added by shelve
+                filename = fname[0][:-3]  # remove extension, it is added by shelve
             elif fname[0][-4:] == '.dat':
                 filename = fname[0][:-4]
             else:
@@ -1196,9 +1180,9 @@ class PyCPD(QMainWindow):
             db['forages'] = self.forages
             db['grid'] = self.grid
             db.close()
-                
-    def fitSpectrum(self):
-        
+
+    def fit_spectrum(self):
+
         f = None
         if self.forage is not None:
             f = self.forage
@@ -1209,27 +1193,23 @@ class PyCPD(QMainWindow):
             zt = locale.toDouble(self.mp.zted.text())[0]
             dz = locale.toDouble(self.mp.dzed.text())[0]
             C = locale.toDouble(self.mp.Ced.text())[0]
-            
+
             betac = self.mp.betac.isChecked()
             ztc = self.mp.ztc.isChecked()
             dzc = self.mp.dzc.isChecked()
             Cc = self.mp.Cc.isChecked()
             lfc = self.mp.lfc.currentIndex()
             if lfc == 2:
-                lfc = f.std_r**2
-            
+                lfc = f.std_r ** 2
+
             meth = self.mp.method
-            
+
             # none fixed
             if not betac and not ztc and not dzc and not Cc:
-                lb = (locale.toDouble(self.mp.beta_lb.text())[0],
-                      locale.toDouble(self.mp.zt_lb.text())[0],
-                      locale.toDouble(self.mp.dz_lb.text())[0],
-                      locale.toDouble(self.mp.C_lb.text())[0])
-                ub = (locale.toDouble(self.mp.beta_ub.text())[0],
-                      locale.toDouble(self.mp.zt_ub.text())[0],
-                      locale.toDouble(self.mp.dz_ub.text())[0],
-                      locale.toDouble(self.mp.C_ub.text())[0])
+                lb = (locale.toDouble(self.mp.beta_lb.text())[0], locale.toDouble(self.mp.zt_lb.text())[0],
+                      locale.toDouble(self.mp.dz_lb.text())[0], locale.toDouble(self.mp.C_lb.text())[0])
+                ub = (locale.toDouble(self.mp.beta_ub.text())[0], locale.toDouble(self.mp.zt_ub.text())[0],
+                      locale.toDouble(self.mp.dz_ub.text())[0], locale.toDouble(self.mp.C_ub.text())[0])
                 x = cpd.find_beta_zt_dz_C(f.S_r, f.k_r, beta, zt, dz, C, lfc, meth, lb, ub)
                 beta = x[0]
                 zt = x[1]
@@ -1261,11 +1241,9 @@ class PyCPD(QMainWindow):
                 C = x[0]
             # beta alone fixed
             elif betac and not ztc and not dzc and not Cc:
-                lb = (locale.toDouble(self.mp.dz_lb.text())[0],
-                      locale.toDouble(self.mp.zt_lb.text())[0],
+                lb = (locale.toDouble(self.mp.dz_lb.text())[0], locale.toDouble(self.mp.zt_lb.text())[0],
                       locale.toDouble(self.mp.C_lb.text())[0])
-                ub = (locale.toDouble(self.mp.dz_ub.text())[0],
-                      locale.toDouble(self.mp.zt_ub.text())[0],
+                ub = (locale.toDouble(self.mp.dz_ub.text())[0], locale.toDouble(self.mp.zt_ub.text())[0],
                       locale.toDouble(self.mp.C_ub.text())[0])
                 x = cpd.find_dz_zt_C(f.S_r, f.k_r, beta, dz, zt, C, lfc, meth, lb, ub)
                 dz = x[0]
@@ -1273,11 +1251,9 @@ class PyCPD(QMainWindow):
                 C = x[2]
             # dz alone fixed
             elif not betac and not ztc and dzc and not Cc:
-                lb = (locale.toDouble(self.mp.beta_lb.text())[0],
-                      locale.toDouble(self.mp.zt_lb.text())[0],
+                lb = (locale.toDouble(self.mp.beta_lb.text())[0], locale.toDouble(self.mp.zt_lb.text())[0],
                       locale.toDouble(self.mp.C_lb.text())[0])
-                ub = (locale.toDouble(self.mp.beta_ub.text())[0],
-                      locale.toDouble(self.mp.zt_ub.text())[0],
+                ub = (locale.toDouble(self.mp.beta_ub.text())[0], locale.toDouble(self.mp.zt_ub.text())[0],
                       locale.toDouble(self.mp.C_ub.text())[0])
                 x = cpd.find_beta_zt_C(f.S_r, f.k_r, beta, zt, C, dz, lfc, meth, lb, ub)
                 beta = x[0]
@@ -1285,11 +1261,9 @@ class PyCPD(QMainWindow):
                 C = x[2]
             # C alone fixed
             elif not betac and not ztc and not dzc and Cc:
-                lb = (locale.toDouble(self.mp.beta_lb.text())[0],
-                      locale.toDouble(self.mp.dz_lb.text())[0],
+                lb = (locale.toDouble(self.mp.beta_lb.text())[0], locale.toDouble(self.mp.dz_lb.text())[0],
                       locale.toDouble(self.mp.zt_lb.text())[0])
-                ub = (locale.toDouble(self.mp.beta_ub.text())[0],
-                      locale.toDouble(self.mp.dz_ub.text())[0],
+                ub = (locale.toDouble(self.mp.beta_ub.text())[0], locale.toDouble(self.mp.dz_ub.text())[0],
                       locale.toDouble(self.mp.zt_ub.text())[0])
                 x = cpd.find_beta_dz_zt(f.S_r, f.k_r, beta, dz, zt, C, lfc, meth, lb, ub)
                 beta = x[0]
@@ -1297,56 +1271,47 @@ class PyCPD(QMainWindow):
                 zt = x[2]
             # zt and dz fixed
             elif not betac and ztc and dzc and not Cc:
-                lb = (locale.toDouble(self.mp.beta_lb.text())[0],
-                      locale.toDouble(self.mp.C_lb.text())[0])
-                ub = (locale.toDouble(self.mp.beta_ub.text())[0],
-                      locale.toDouble(self.mp.C_ub.text())[0])
+                lb = (locale.toDouble(self.mp.beta_lb.text())[0], locale.toDouble(self.mp.C_lb.text())[0])
+                ub = (locale.toDouble(self.mp.beta_ub.text())[0], locale.toDouble(self.mp.C_ub.text())[0])
                 x = cpd.find_beta_C(dz, f.S_r, f.k_r, beta, C, zt, lfc, meth, lb, ub)
                 beta = x[0]
                 C = x[1]
             # C and dz fixed
             elif not betac and not ztc and dzc and Cc:
-                lb = (locale.toDouble(self.mp.beta_lb.text())[0],
-                      locale.toDouble(self.mp.zt_lb.text())[0])
-                ub = (locale.toDouble(self.mp.beta_ub.text())[0],
-                      locale.toDouble(self.mp.zt_ub.text())[0])
+                lb = (locale.toDouble(self.mp.beta_lb.text())[0], locale.toDouble(self.mp.zt_lb.text())[0])
+                ub = (locale.toDouble(self.mp.beta_ub.text())[0], locale.toDouble(self.mp.zt_ub.text())[0])
                 x = cpd.find_beta_zt(dz, f.S_r, f.k_r, beta, zt, C, lfc, meth, lb, ub)
                 beta = x[0]
                 zt = x[1]
             # beta and C fixed
             elif betac and not ztc and not dzc and Cc:
-                lb = (locale.toDouble(self.mp.dz_lb.text())[0],
-                      locale.toDouble(self.mp.zt_lb.text())[0])
-                ub = (locale.toDouble(self.mp.dz_ub.text())[0],
-                      locale.toDouble(self.mp.zt_ub.text())[0])
+                lb = (locale.toDouble(self.mp.dz_lb.text())[0], locale.toDouble(self.mp.zt_lb.text())[0])
+                ub = (locale.toDouble(self.mp.dz_ub.text())[0], locale.toDouble(self.mp.zt_ub.text())[0])
                 x = cpd.find_dz_zt(f.S_r, f.k_r, dz, zt, beta, C, lfc, meth, lb, ub)
                 dz = x[0]
                 zt = x[1]
             # beta and dz fixed
             elif betac and not ztc and dzc and not Cc:
-                lb = (locale.toDouble(self.mp.zt_lb.text())[0],
-                      locale.toDouble(self.mp.C_lb.text())[0])
-                ub = (locale.toDouble(self.mp.zt_ub.text())[0],
-                      locale.toDouble(self.mp.C_ub.text())[0])
+                lb = (locale.toDouble(self.mp.zt_lb.text())[0], locale.toDouble(self.mp.C_lb.text())[0])
+                ub = (locale.toDouble(self.mp.zt_ub.text())[0], locale.toDouble(self.mp.C_ub.text())[0])
                 x = cpd.find_zt_C(f.S_r, f.k_r, beta, dz, zt, C, lfc, meth, lb, ub)
                 zt = x[0]
                 C = x[1]
             else:
                 QMessageBox.warning(self, 'Warning', 'Combination of fixed parameters not implemented', QMessageBox.Ok)
                 return
-                
-            
+
             self.mp.betaed.setText(locale.toString(beta, format='f', precision=2))
-            self.mp.betaeChanged()
+            self.mp.betae_changed()
             self.mp.zted.setText(locale.toString(zt, format='f', precision=1))
-            self.mp.zteChanged()
+            self.mp.zte_changed()
             self.mp.dzed.setText(locale.toString(dz, format='f', precision=1))
-            self.mp.dzeChanged()
+            self.mp.dze_changed()
             self.mp.Ced.setText(locale.toString(C, format='f', precision=1))
-            self.mp.CeChanged()
-            self.updateSpectrum()
-    
-    def fitSpec2step(self):
+            self.mp.Ce_changed()
+            self.update_spectrum()
+
+    def fit_spectrum_2step(self):
         f = None
         if self.forage is not None:
             f = self.forage
@@ -1357,74 +1322,71 @@ class PyCPD(QMainWindow):
             zt = locale.toDouble(self.mp.zted.text())[0]
             dz = locale.toDouble(self.mp.dzed.text())[0]
             C = locale.toDouble(self.mp.Ced.text())[0]
-            
+
             lfc = self.mp.lfc.currentIndex()
             if lfc == 2:
-                lfc = f.std_r**2
-            
+                lfc = f.std_r ** 2
+
             meth = self.mp.method
 
-            lb = (locale.toDouble(self.mp.beta_lb.text())[0],
-                  locale.toDouble(self.mp.C_lb.text())[0])
-            ub = (locale.toDouble(self.mp.beta_ub.text())[0],
-                  locale.toDouble(self.mp.C_ub.text())[0])
+            lb = (locale.toDouble(self.mp.beta_lb.text())[0], locale.toDouble(self.mp.C_lb.text())[0])
+            ub = (locale.toDouble(self.mp.beta_ub.text())[0], locale.toDouble(self.mp.C_ub.text())[0])
             x = cpd.find_beta_C(dz, f.S_r, f.k_r, beta, C, zt, lfc, meth, lb, ub)
             beta = x[0]
             C = x[1]
 
-            lb = (locale.toDouble(self.mp.dz_lb.text())[0],
-                  locale.toDouble(self.mp.zt_lb.text())[0])
-            ub = (locale.toDouble(self.mp.dz_ub.text())[0],
-                  locale.toDouble(self.mp.zt_ub.text())[0])
+            lb = (locale.toDouble(self.mp.dz_lb.text())[0], locale.toDouble(self.mp.zt_lb.text())[0])
+            ub = (locale.toDouble(self.mp.dz_ub.text())[0], locale.toDouble(self.mp.zt_ub.text())[0])
             x = cpd.find_dz_zt(f.S_r, f.k_r, dz, zt, beta, C, lfc, meth, lb, ub)
             dz = x[0]
             zt = x[1]
-            
+
             self.mp.betaed.setText(locale.toString(beta, format='f', precision=2))
-            self.mp.betaeChanged()
+            self.mp.betae_changed()
             self.mp.zted.setText(locale.toString(zt, format='f', precision=1))
-            self.mp.zteChanged()
+            self.mp.zte_changed()
             self.mp.dzed.setText(locale.toString(dz, format='f', precision=1))
-            self.mp.dzeChanged()
+            self.mp.dze_changed()
             self.mp.Ced.setText(locale.toString(C, format='f', precision=1))
-            self.mp.CeChanged()
-            self.updateSpectrum()
-            
-    def showAsim(self):
+            self.mp.Ce_changed()
+            self.update_spectrum()
+
+    def show_Asim(self):
         if self.forages is not None:
             f = self.forages[self.bh.bhlist.currentIndex()]
-            if len(f.A_sim)>0:
+            if len(f.A_sim) > 0:
                 fig = plt.figure()
-                fig.set_size_inches(7,5)
-                plt.hist(f.A_sim, bins=30, label='Median: '+locale.toString(np.median(f.A_sim)))
-                plt.title(f.site_name+' - Heat production')
+                fig.set_size_inches(7, 5)
+                plt.hist(f.A_sim, bins=30, label='Median: ' + locale.toString(np.median(f.A_sim)))
+                plt.title(f.site_name + ' - Heat production')
                 plt.legend()
                 plt.show()
             else:
-                QMessageBox.warning(self, 'Warning', 'No heat production simulation performed at this site', QMessageBox.Ok)
-                
-    def showksim(self):
+                QMessageBox.warning(self, 'Warning', 'No heat production simulation performed at this site',
+                                    QMessageBox.Ok)
+
+    def show_ksim(self):
         if self.forages is not None:
             f = self.forages[self.bh.bhlist.currentIndex()]
-            if len(f.k_sim)>0:
+            if len(f.k_sim) > 0:
                 fig = plt.figure()
                 fig.set_size_inches(7, 5)
-                plt.hist(f.k_sim, bins=30, label='Median: '+locale.toString(np.median(f.k_sim)))
-                plt.title(f.site_name+' - Thermal conductivity')
+                plt.hist(f.k_sim, bins=30, label='Median: ' + locale.toString(np.median(f.k_sim)))
+                plt.title(f.site_name + ' - Thermal conductivity')
                 plt.legend()
                 plt.show()
             else:
                 QMessageBox.warning(self, 'Warning', 'No thermal conductivity simulation performed at this site',
                                     QMessageBox.Ok)
-                
-    def plotLachenbruch(self):
+
+    def plot_lachenbruch(self):
         if self.forages is not None:
             f = self.forages[self.bh.bhlist.currentIndex()]
-            z = 1000.0 * np.arange(81)            
+            z = 1000.0 * np.arange(81)
             D = 1000.0 * locale.toDouble(self.lach.D.text())[0]
             if self.bh.Q0.count() == 0:
                 return  # bh not yet displayed
-        
+
             if self.lach.override.isChecked():
                 Q0 = locale.toDouble(self.lach.Q0.text())[0]
                 A = locale.toDouble(self.lach.A.text())[0]
@@ -1434,51 +1396,51 @@ class PyCPD(QMainWindow):
                     Q0 = f.Q0[0]
                 else:
                     Q0 = f.Q0[self.bh.Q0.currentIndex()]
-                    
+
                 if f.A.size == 1:
                     A = f.A[0]
                 elif f.A.size > 1:
                     A = f.A[self.bh.A.currentIndex()]
                 else:
                     A = np.median(f.A_sim)
-                
+
                 if f.k.size == 1:
                     k = f.k[0]
                 elif f.k.size > 1:
                     k = f.k[self.bh.k.currentIndex()]
                 else:
                     k = np.median(f.k_sim)
-            
+
             T = cpd.lachenbruch(Q0, A, k, z, D)
             if T[-1] < 600.0:
                 z *= 2
             T = cpd.lachenbruch(Q0, A, k, z, D)
-            ind = T<=600.0
-            
-            self.lachplot.plot(T[ind], 0.001*z[ind], title='$A_0$={0:4.2f}, $k$={1:4.2f}'.format(A, k))
-            
-            
-    def lachEdited(self):
+            ind = T <= 600.0
+
+            self.lachplot.plot(T[ind], 0.001 * z[ind], title='$A_0$={0:4.2f}, $k$={1:4.2f}'.format(A, k))
+
+    def lachenbruch_edited(self):
         if self.lach.override.isChecked():
-            self.plotLachenbruch()
-                
+            self.plot_lachenbruch()
+
+
 if __name__ == '__main__':
-    
+
     app = QApplication(sys.argv)
     ex = PyCPD()
-    
+
     if os.path.isfile('data/forages.db'):
-          
-        db = shelve.open('data/forages','r')
+        db = shelve.open('data/forages', 'r')
         ex.forages = db['forages']
         db.close()
-        ex.bh.setList(ex.forages)
-           
-        ex.grid = cpd.Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
+        ex.bh.set_list(ex.forages)
+
+        ex.grid = cpd.Grid2d(
+            '+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
         ex.grid.readnc('data/Qc_lcc_clipped.nc')
-        ex.locmap.drawMap(ex.grid)
-        ex.locmap.updateBhLoc(ex.forages[0])
-        ex.computeSpectrum()
-        ex.plotLachenbruch()
-    
+        ex.locmap.draw_map(ex.grid)
+        ex.locmap.update_bh_loc(ex.forages[0])
+        ex.compute_spectrum()
+        ex.plot_lachenbruch()
+
     sys.exit(app.exec_())

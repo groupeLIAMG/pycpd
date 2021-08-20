@@ -25,22 +25,21 @@ B. Giroux
 INRS-ETE
 '''
 import struct
-import numpy as np
-from scipy.special import gamma, kv, lambertw
-from scipy.optimize import fmin, fminbound, fmin_cobyla, least_squares
-from scipy.signal import tukey
-from scipy.linalg import lstsq
-import pyproj
-import netCDF4
-import cartopy.crs as ccrs
-
 import time
-import warnings
+
+import cartopy.crs as ccrs
+import netCDF4
+import numpy as np
+import pyproj
+import spectrum
+from scipy.linalg import lstsq
+from scipy.optimize import fmin, fminbound, fmin_cobyla, least_squares
+from scipy.signal.windows import tukey
+from scipy.special import gamma, kv, lambertw
 
 import geostat
-from mem import lim_malik
 import radon
-import spectrum
+from mem import lim_malik
 
 dz_lb = 5.0
 dz_ub = 80.0
@@ -61,6 +60,7 @@ ftol_ls = 1e-8
 gtol_ls = 1e-8
 max_nfev_ls = None
 
+
 class Point:
     def __init__(self, x, y):
         self.x = x
@@ -71,17 +71,17 @@ class Polygon:
     def __init__(self):
         self.pts = []
 
-    def addPoint(self, p):
+    def add_point(self, p):
         self.pts.append(p)
 
     def inside(self, p):
         test = False
 
         j = len(self.pts) - 1
-        for i in range(j+1):
-            if ( (self.pts[i].y >= p.y ) != (self.pts[j].y >= p.y) ) and \
-            (p.x <= (self.pts[j].x - self.pts[i].x) * \
-                (p.y - self.pts[i].y) / (self.pts[j].y - self.pts[i].y) + self.pts[i].x):
+        for i in range(j + 1):
+            if ((self.pts[i].y >= p.y) != (self.pts[j].y >= p.y)) and (
+                    p.x <= (self.pts[j].x - self.pts[i].x) * (p.y - self.pts[i].y) / (self.pts[j].y - self.pts[i].y) +
+                    self.pts[i].x):
                 test = not test
             j = i
         return test
@@ -95,60 +95,57 @@ class Forage:
         self.y = []
         self.dom_id = 0
         self.site_name = ''
-        self.Q0 = []                 # mW/m2
-        self.k = []                  # W/m/K
-        self.k_sim = []              # W/m/K
-        self.A = []                  # W/m3 x 1e-6
-        self.A_sim = []              # W/m3 x 1e-6
-        self.zb_sim = []             # m
-        self.S_r = []                # Radial spectrum
-        self.k_r =[]                 # wavenumber of Spectrum
-        self.std_r = []              # standard deviation of spectrum samples in radial bin
-        self.ns_r = []               # number of spectrum samples in radial bin
+        self.Q0 = []  # mW/m2
+        self.k = []  # W/m/K
+        self.k_sim = []  # W/m/K
+        self.A = []  # W/m3 x 1e-6
+        self.A_sim = []  # W/m3 x 1e-6
+        self.zb_sim = []  # m
+        self.S_r = []  # Radial spectrum
+        self.k_r = []  # wavenumber of Spectrum
+        self.std_r = []  # standard deviation of spectrum samples in radial bin
+        self.ns_r = []  # number of spectrum samples in radial bin
         self.pad = False
         self.beta_sim = []
         self.zt_sim = []
         self.C = []
         self.offshore = False
         self.zb_sat = None
-        self.updateProj(proj4string)
+        self.update_proj(proj4string)
 
     def __eq__(self, rhs):  # to search in lists of Forage
-        if rhs == None:
+        if rhs is None:
             return False
         else:
             return self.is_close(rhs.lat, rhs.lon)
 
     def __str__(self):
-        val = 'Site Name: '+self.site_name+'\n'
+        val = 'Site Name: ' + self.site_name + '\n'
         val += 'Latitude: {0:8.6f}\nLongitude: {1:8.6f}\n'.format(self.lat, self.lon)
-        val += 'Q0: '+str(self.Q0)+'\n'
-        val += 'k : '+str(self.k)+'\n'
-        val += 'A : '+str(self.A)+'\n'
+        val += 'Q0: ' + str(self.Q0) + '\n'
+        val += 'k : ' + str(self.k) + '\n'
+        val += 'A : ' + str(self.A) + '\n'
         return val
 
     def is_close(self, lat, lon, tol=0.00001):
-        return abs(self.lat-lat)<tol and abs(self.lon-lon)<tol
+        return abs(self.lat - lat) < tol and abs(self.lon - lon) < tol
 
-    def updateProj(self, proj4string):
-        if proj4string != None:
+    def update_proj(self, proj4string):
+        if proj4string is not None:
             lcc = pyproj.Proj(proj4string)
             self.x, self.y = lcc(self.lon, self.lat)
-        else:
-            warnings.warn('Projection undefined, coordinates not projected', UserWarning)
+
 
 def proj4string2cartopy(proj4string):
-    '''
+    """
     Function to build a cartopy projection from a proj4 string
 
     This is far from complete and was tested only with the Lambert Conformal projection
-    '''
+    """
     params = {}
     tmp = proj4string.split('+')
-    a = None
-    b = None
     for t in tmp:
-        if len(t)>0:
+        if len(t) > 0:
             t2 = t.strip().split('=')
             if len(t2) > 1:
                 params[t2[0]] = t2[1]
@@ -162,7 +159,7 @@ def proj4string2cartopy(proj4string):
     inverse_flattening = None
     towgs84 = None
     nadgrids = None
-    
+
     if 'ellps' in params:
         ellipse = params['ellps']
     if 'datum' in params:
@@ -173,13 +170,10 @@ def proj4string2cartopy(proj4string):
         semiminor_axis = float(params['b'])
     if 'nadgrids' in params:
         nadgrids = params['nadgrids']
-        
-    globe = ccrs.Globe(datum=datum, ellipse=ellipse,
-                       semimajor_axis=semimajor_axis,
-                       semiminor_axis=semiminor_axis, flattening=flattening,
-                       inverse_flattening=inverse_flattening, towgs84=towgs84,
-                       nadgrids=nadgrids)
-    
+
+    globe = ccrs.Globe(datum=datum, ellipse=ellipse, semimajor_axis=semimajor_axis, semiminor_axis=semiminor_axis,
+                       flattening=flattening, inverse_flattening=inverse_flattening, towgs84=towgs84, nadgrids=nadgrids)
+
     if params['proj'] == 'lcc':
         central_longitude = -96.0
         central_latitude = 39.0
@@ -187,9 +181,9 @@ def proj4string2cartopy(proj4string):
         false_northing = 0.0
         secant_latitudes = None
         standard_parallels = None
-        globe=globe
-        cutoff=-30
-        
+        globe = globe
+        cutoff = -30
+
         if 'lon_0' in params:
             central_longitude = float(params['lon_0'])
         if 'lat_0' in params:
@@ -228,21 +222,18 @@ class Grid2d:
         self.dy = 0
         self.G = None
         self.latlon = False
-#        self.proj4string = '+proj=lcc +lat_1=60 +lat_2=46 +lat_0=44 +lon_0=-68.5 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs'  # EPSG:32198
         self.proj4string = proj4string
 
-
     def inside(self, pt, buffer=0.0):
-        return pt.x>=(self.xwest+buffer) and pt.x<=(self.xeast-buffer) and pt.y>=(self.ysouth+buffer) and pt.y<=(self.ynorth-buffer)
+        return (self.xwest + buffer) <= pt.x <= (self.xeast - buffer) and (self.ysouth + buffer) <= pt.y <= (
+                self.ynorth - buffer)
 
     def as_2col(self):
         x = self.xwest + self.dx * np.arange(self.ncol)
         y = self.ysouth + self.dy * np.arange(self.nrow)
-        x = x.reshape(-1,1)
-        y = y.reshape(-1,1)
-        return np.hstack((np.kron(np.ones((self.nrow,1)), x),
-                          np.kron(y, np.ones((self.ncol,1)))))
-
+        x = x.reshape(-1, 1)
+        y = y.reshape(-1, 1)
+        return np.hstack((np.kron(np.ones((self.nrow, 1)), x), np.kron(y, np.ones((self.ncol, 1)))))
 
     def readUSGSfile(self, fname):
         """
@@ -255,26 +246,26 @@ class Grid2d:
             ifile.seek(4, 1)
             self.xwest = struct.unpack('>f', ifile.read(4))[0]
             self.dx = struct.unpack('>f', ifile.read(4))[0]
-            self.xeast = self.xwest + self.dx*(self.ncol-1)
+            self.xeast = self.xwest + self.dx * (self.ncol - 1)
             self.ysouth = struct.unpack('>f', ifile.read(4))[0]
             self.dy = struct.unpack('>f', ifile.read(4))[0]
-            self.ynorth = self.ysouth + self.dy*(self.nrow-1)
+            self.ynorth = self.ysouth + self.dy * (self.nrow - 1)
             ifile.seek(24, 1)
             pos = ifile.tell()
-            ifile.seek(0,2)
+            ifile.seek(0, 2)
             pos2 = ifile.tell()
-            nd = int( (pos2-pos)/4 )
+            nd = int((pos2 - pos) / 4)
             ifile.seek(pos, 0)
-            A = np.array(struct.unpack('>'+str(nd)+'f', ifile.read(nd*4)))
-            A[A>1.e+31]=np.nan
-            A[A<-1.e+31]=np.nan
-            nmiss = (self.ncol+3)*self.nrow - A.size
-            if nmiss>0:
+            A = np.array(struct.unpack('>' + str(nd) + 'f', ifile.read(nd * 4)))
+            A[A > 1.e+31] = np.nan
+            A[A < -1.e+31] = np.nan
+            nmiss = (self.ncol + 3) * self.nrow - A.size
+            if nmiss > 0:
                 A = np.append(A, np.zeros((nmiss,)))
-            A = A.reshape(self.nrow, self.ncol+3)
-            self.data = A[:,:-3]
+            A = A.reshape(self.nrow, self.ncol + 3)
+            self.data = A[:, :-3]
 
-            try :
+            try:
                 lcc = pyproj.Proj(self.proj4string)
                 self.c0 = lcc(self.xwest, self.ysouth, inverse=True)
                 self.c1 = lcc(self.xeast, self.ynorth, inverse=True)
@@ -289,12 +280,11 @@ class Grid2d:
 
         varx = dataset.createVariable('x', np.float64, ('x'))
         vary = dataset.createVariable('y', np.float64, ('y'))
-        varz = dataset.createVariable('z', np.float32, ('y','x'),
-                                      zlib=True, complevel=complevel, fill_value = np.nan)
+        varz = dataset.createVariable('z', np.float32, ('y', 'x'), zlib=True, complevel=complevel, fill_value=np.nan)
         varz.actual_range = [np.min(self.data), np.max(self.data)]
 
-        varx[:] = self.xwest + self.dx*np.arange(self.ncol, dtype=np.float64)
-        vary[:] = self.ysouth + self.dy*np.arange(self.nrow, dtype=np.float64)
+        varx[:] = self.xwest + self.dx * np.arange(self.ncol, dtype=np.float64)
+        vary[:] = self.ysouth + self.dy * np.arange(self.nrow, dtype=np.float64)
         varz[:] = np.array(self.data, dtype=np.float32)
         # set range to ensure correct grid registration
         varx.actual_range = [varx[0], varx[-1]]
@@ -306,7 +296,7 @@ class Grid2d:
         try:
             dataset = netCDF4.Dataset(fname, 'r', format='NETCDF4')
         except OSError:
-            raise IOError('Could not open '+fname)
+            raise IOError('Could not open ' + fname)
 
         if 'x_range' in dataset.variables:
             x = dataset.variables['x_range']
@@ -321,8 +311,8 @@ class Grid2d:
             dx = dataset.variables['spacing']
             self.dx = dx[0]
             self.dy = dx[1]
-            self.data = np.array(dataset.variables['z']).reshape((self.nrow,self.ncol))
-            self.data = self.data[::-1,:]
+            self.data = np.array(dataset.variables['z']).reshape((self.nrow, self.ncol))
+            self.data = self.data[::-1, :]
         else:
             try:
                 x = dataset.variables['x']
@@ -345,7 +335,7 @@ class Grid2d:
         dataset.close()
 
         if proj:
-            try :
+            try:
                 lcc = pyproj.Proj(self.proj4string)
                 self.c0 = lcc(self.xwest, self.ysouth, inverse=True)
                 self.c1 = lcc(self.xeast, self.ynorth, inverse=True)
@@ -361,49 +351,49 @@ class Grid2d:
 
         """
         small = 1.0e-6
-        Nx = 2*self.ncol
-        Ny = 2*self.nrow
+        Nx = 2 * self.ncol
+        Ny = 2 * self.nrow
 
-        Nx2 = Nx/2
-        Ny2 = Ny/2
+        Nx2 = Nx / 2
+        Ny2 = Ny / 2
 
-        x = self.dx * np.hstack((np.arange(Nx2), np.arange(-Nx2+1,1)))
-        y = self.dy * np.hstack((np.arange(Ny2), np.arange(-Ny2+1,1)))
+        x = self.dx * np.hstack((np.arange(Nx2), np.arange(-Nx2 + 1, 1)))
+        y = self.dy * np.hstack((np.arange(Ny2), np.arange(-Ny2 + 1, 1)))
 
-        x = np.kron(x,np.ones((Ny,)))
-        y = np.kron(y,np.ones((1,Nx)).T).flatten()
+        x = np.kron(x, np.ones((Ny,)))
+        y = np.kron(y, np.ones((1, Nx)).T).flatten()
 
         d = 0
         for c in cm:
-            d = d + c.compute(np.vstack((x,y)).T, np.zeros((1,2)))
-        K = d.reshape(Nx,Ny)
+            d = d + c.compute(np.vstack((x, y)).T, np.zeros((1, 2)))
+        K = d.reshape(Nx, Ny)
 
         mk = True
         while mk:
             mk = False
-            if np.min(K[0,:])>small:
+            if np.min(K[0, :]) > small:
                 # Enlarge grid to make sure that covariance falls to zero
-                Ny = 2*Ny
+                Ny = 2 * Ny
                 mk = True
 
-            if np.min(K[:,0])>small:
-                Nx = 2*Nx
+            if np.min(K[:, 0]) > small:
+                Nx = 2 * Nx
                 mk = True
 
             if mk:
-                Nx2 = Nx/2
-                Ny2 = Ny/2
+                Nx2 = Nx / 2
+                Ny2 = Ny / 2
 
-                x = self.dx * np.hstack((np.arange(Nx2), np.arange(-Nx2+1,1)))
-                y = self.dy * np.hstack((np.arange(Ny2), np.arange(-Ny2+1,1)))
+                x = self.dx * np.hstack((np.arange(Nx2), np.arange(-Nx2 + 1, 1)))
+                y = self.dy * np.hstack((np.arange(Ny2), np.arange(-Ny2 + 1, 1)))
 
-                x = np.kron(x,np.ones((Ny,)))
-                y = np.kron(y,np.ones((1,Nx)).T).flatten()
+                x = np.kron(x, np.ones((Ny,)))
+                y = np.kron(y, np.ones((1, Nx)).T).flatten()
 
                 d = 0
                 for c in cm:
-                    d = d + c.compute(np.vstack((x,y)).T, np.zeros((1,2)))
-                K = d.reshape(Nx,Ny)
+                    d = d + c.compute(np.vstack((x, y)).T, np.zeros((1, 2)))
+                K = d.reshape(Nx, Ny)
 
         self.G = np.sqrt(np.fft.fft2(K))
 
@@ -417,53 +407,52 @@ class Grid2d:
         if self.G is None:
             raise RuntimeError('Spectral matrix G should be precomputed')
 
-        Nx,Ny = self.G.shape
+        Nx, Ny = self.G.shape
         U = np.fft.fft2(np.random.randn(self.G.shape[0], self.G.shape[1]))
 
-        Z = np.real(np.fft.ifft2(self.G*U))
+        Z = np.real(np.fft.ifft2(self.G * U))
         return Z[:self.ncol, :self.nrow].T  # transpose to have nx cols & ny rows
 
+    def _get_subgrid(self, xc, yc, ww, detrend):
 
-    def _getSubgrid(self, xc, yc, ww, detrend):
+        nw = 1 + int(ww / self.dx)
+        nw2 = int(nw / 2)
+        ix = int((xc - self.xwest) / self.dx)
+        iy = int((yc - self.ysouth) / self.dx)
 
-        nw = 1+int(ww/self.dx)
-        nw2 = int(nw/2)
-        ix = int((xc-self.xwest)/self.dx)
-        iy = int((yc-self.ysouth)/self.dx)
-
-        imin = ix-nw2
-        imax = ix+nw2+1
-        jmin = iy-nw2
-        jmax = iy+nw2+1
-        flagPad = False
+        imin = ix - nw2
+        imax = ix + nw2 + 1
+        jmin = iy - nw2
+        jmax = iy + nw2 + 1
+        flag_pad = False
         if imin < 0:
-            print('Warning: pt close to eastern edge, padding will be applied ('+str(-imin)+' cols)')
+            print('Warning: pt close to eastern edge, padding will be applied (' + str(-imin) + ' cols)')
             imin = 0
-            flagPad = True
+            flag_pad = True
         if imax > self.ncol:
-            print('Warning: pt close to western edge, padding will be applied ('+str(imax-self.ncol)+' cols)')
+            print('Warning: pt close to western edge, padding will be applied (' + str(imax - self.ncol) + ' cols)')
             imax = self.ncol
-            flagPad = True
+            flag_pad = True
         if jmin < 0:
-            print('Warning: pt close to southern edge, padding will be applied ('+str(-jmin)+' rows)')
+            print('Warning: pt close to southern edge, padding will be applied (' + str(-jmin) + ' rows)')
             jmin = 0
-            flagPad = True
+            flag_pad = True
         if jmax > self.nrow:
-            print('Warning: pt close to northern edge, padding will be applied ('+str(jmax-self.nrow)+' rows)')
+            print('Warning: pt close to northern edge, padding will be applied (' + str(jmax - self.nrow) + ' rows)')
             jmax = self.nrow
-            flagPad = True
+            flag_pad = True
 
         data = self.data[jmin:jmax, imin:imax].copy()
 
-        ny,nx = data.shape
-        if ny<nw:
-            data = np.vstack((data, np.zeros((nw-ny,nx))))  # pad with zeros
+        ny, nx = data.shape
+        if ny < nw:
+            data = np.vstack((data, np.zeros((nw - ny, nx))))  # pad with zeros
         if nx < nw:
-            data = np.hstack((data, np.zeros((nw,nw-nx))))
+            data = np.hstack((data, np.zeros((nw, nw - nx))))
 
         if detrend == 1:
             # remove linear trend
-            x,y = np.meshgrid(np.arange(data.shape[1]), np.arange(data.shape[0]))
+            x, y = np.meshgrid(np.arange(data.shape[1]), np.arange(data.shape[0]))
 
             A = np.column_stack((x.flatten(), y.flatten(), np.ones(x.size)))
             c, resid, rank, sigma = lstsq(A, data.flatten())
@@ -480,11 +469,10 @@ class Grid2d:
             mid = 0.5 * (data.max() - data.min())
             data = data - mid
 
-        return data, nw, flagPad
+        return data, nw, flag_pad
 
-
-    def getRadialSpectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scalFac=0.001,
-                           mem=0, memest=0, order=10, kcut=0.0, cdecim=0, logspace=0, padding=0):
+    def get_radial_spectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scal_fac=0.001, mem=0, memest=0, order=10,
+                            kcut=0.0, cdecim=0, logspace=0, padding=0):
         """
         Compute radial spectrum for point at (xc,yc) for square window of
         width equal to ww
@@ -501,7 +489,7 @@ class Grid2d:
                    2 : remove mean value
                    3 : remove median value
                    4 : remove mid value, i.e. 0.5 * (max + min)
-        scalFac  : scaling factor to get k in rad/km  (0.001 by default, for grid in m)
+        scal_fac  : scaling factor to get k in rad/km  (0.001 by default, for grid in m)
         mem      : If 0, calculate spectrum with FFT (the default)
                    If 1, calculate spectrum with maximum entropy estimator of Srinivasa et al. (1992),
                       IEEE Trans. Signal Processing
@@ -514,21 +502,24 @@ class Grid2d:
                      If 0, do not troncate (the default)
         cdecim   : cascade decimation, value is maximum number of points to skip
                      (default is 0 : decimation not performed)
-        logspace : interpolate (linearly) spectrum in logspace
+        logspace : compute spectrum along rings of logarithmically growing width, (produces a radial spectrum evenly
+                     distributed on a log scale)
                      value is number of points in spectrum
-                     (0 by default, no interpolation)
+                     (0 by default, use constant ring size)
+        padding : interpolate spectrum by zero-padding the data
+                     (0 by default, no padding)
 
         Returns
         -------
-        S       : Radial spectrum
-        k       : wavenumber [rad/km]
-        std     : Standard deviation of samples in radial bin
-        ns      : Number of samples in radial bin
-        flagPad : True if zero padding was applied
+        S        : Radial spectrum
+        k        : wavenumber [rad/km]
+        std      : Standard deviation of samples in radial bin
+        ns       : Number of samples in radial bin
+        flag_pad : True if zero padding was applied
         """
 
         # check if in grid
-        if xc<self.xwest or xc>self.xeast or yc<self.ysouth or yc>self.ynorth:
+        if xc < self.xwest or xc > self.xeast or yc < self.ysouth or yc > self.ynorth:
             raise ValueError('Point outside grid')
 
         if self.dx != self.dy:
@@ -537,57 +528,57 @@ class Grid2d:
         if logspace > 0 and cdecim > 0:
             raise ValueError('Parameters logspace and cdecim are mutually exclusive')
 
-        data, nw, flagPad = self._getSubgrid(xc, yc, ww, detrend)
+        data, nw, flag_pad = self._get_subgrid(xc, yc, ww, detrend)
 
         taper_val = np.ones(data.shape)
 
-        if taper == None:
+        if taper is None:
             ht = 1.0
         elif taper is tukey:
             ht = taper(taper_val.shape[0], alpha=0.05)  # Bouligand uses 5% tapering
         else:
             ht = taper(taper_val.shape[0])
         for n in range(taper_val.shape[1]):
-            taper_val[:,n] *= ht
-        if taper == None:
+            taper_val[:, n] *= ht
+        if taper is None:
             ht = 1.0
         elif taper is tukey:
             ht = taper(taper_val.shape[1], alpha=0.05)
         else:
             ht = taper(taper_val.shape[1])
         for n in range(taper_val.shape[0]):
-            taper_val[n,:] *= ht
+            taper_val[n, :] *= ht
 
         nfft = data.shape
         if padding > 0:
-            nfft = (nfft[0] * (padding+1), nfft[1] * (padding+1))
+            nfft = (nfft[0] * (padding + 1), nfft[1] * (padding + 1))
 
-        dx = self.dx * scalFac  # from m to km
-        dk0 = 2.0*np.pi / (nw-1) / dx   # before padding
-        dk = 2.0*np.pi / (nfft[0]-1) / dx
+        dx = self.dx * scal_fac  # from m to km
+        dk0 = 2.0 * np.pi / (nw - 1) / dx  # before padding
+        dk = 2.0 * np.pi / (nfft[0] - 1) / dx
 
         if mem == 0:
-            TF2D = np.abs(np.fft.fft2(data*taper_val, s=nfft))
+            TF2D = np.abs(np.fft.fft2(data * taper_val, s=nfft))
             TF2D = np.fft.fftshift(TF2D)
 
             if logspace == 0:
-                kbins = np.arange(dk0, dk0*nw/2, dk0)
+                kbins = np.arange(dk0, dk0 * nw / 2, dk0)
             else:
-                kbins = np.logspace(np.log10(dk0), np.log10(dk0*nw/2), logspace)
+                kbins = np.logspace(np.log10(dk0), np.log10(dk0 * nw / 2), logspace)
 
-            nbins = kbins.size-1
+            nbins = kbins.size - 1
             S = np.zeros((nbins,))
             k = np.zeros((nbins,))
             std = np.zeros((nbins,))
             ns = np.zeros((nbins,))
 
-            i0 = int((nfft[0]-1)/2)
-            iy,ix= np.meshgrid(np.arange(nfft[0]), np.arange(nfft[0]))
-            kk = np.sqrt( ((ix-i0)*dk)**2 + ((iy-i0)*dk)**2 )
+            i0 = int((nfft[0] - 1) / 2)
+            iy, ix = np.meshgrid(np.arange(nfft[0]), np.arange(nfft[0]))
+            kk = np.sqrt(((ix - i0) * dk) ** 2 + ((iy - i0) * dk) ** 2)
 
             for n in range(nbins):
-                ind = np.logical_and( kk>=kbins[n], kk<kbins[n+1] )
-                rr = 2.0*np.log(TF2D[ind])
+                ind = np.logical_and(kk >= kbins[n], kk < kbins[n + 1])
+                rr = 2.0 * np.log(TF2D[ind])
                 S[n] = np.mean(rr)
                 k[n] = np.mean(kk[ind])
                 std[n] = np.std(rr)
@@ -595,17 +586,17 @@ class Grid2d:
 
         elif mem == 1:
             # method of Srinivasa et al. 1992
-            k = np.arange(dk, dk*nw/2, dk)
+            k = np.arange(dk, dk * nw / 2, dk)
             S = np.zeros((k.size,))
             std = np.zeros((k.size,))
 
-            theta = np.pi*np.arange(0.0,180.0,5.0)/180.0
+            theta = np.pi * np.arange(0.0, 180.0, 5.0) / 180.0
             sinogram = radon.radon2d(data, theta)
-            SS = np.zeros((theta.size,k.size))
+            SS = np.zeros((theta.size, k.size))
             ns = np.zeros((k.size,)) + theta.size
 
             # apply taper on individual directions
-            if taper == None:
+            if taper is None:
                 taper_val = 1.0
             elif taper is tukey:
                 taper_val = taper(sinogram.shape[0], alpha=0.05)
@@ -614,33 +605,34 @@ class Grid2d:
 
             for n in range(theta.size):
                 if memest == 0:
-                    PSD = np.abs(np.fft.fft(taper_val * sinogram[:,n], n=1+2*k.size))
+                    PSD = np.abs(np.fft.fft(taper_val * sinogram[:, n], n=1 + 2 * k.size))
                 else:
-                    a, b, rho = spectrum.arma_estimate(taper_val * sinogram[:,n], order, order, 2*order)
-                    PSD = spectrum.arma2psd(A=a, B=b, NFFT=1+2*k.size)
-#                 AR, P, kk = spectrum.arburg(taper_val * sinogram[:,n], order)
-#                 PSD = spectrum.arma2psd(AR, NFFT=1+2*k.size)
-                SS[n,:] = 2.0*np.log( PSD[1:k.size+1] )
+                    a, b, rho = spectrum.arma_estimate(taper_val * sinogram[:, n], order, order, 2 * order)
+                    PSD = spectrum.arma2psd(A=a, B=b, NFFT=1 + 2 * k.size)
+                #                 AR, P, kk = spectrum.arburg(taper_val * sinogram[:,n], order)
+                #                 PSD = spectrum.arma2psd(AR, NFFT=1+2*k.size)
+                SS[n, :] = 2.0 * np.log(PSD[1:k.size + 1])
 
             S = np.mean(SS, axis=0)
             std = np.std(SS, axis=0)
 
         elif mem == 2:
-            Stmp = np.abs( lim_malik(data*taper_val) )
+            Stmp = np.abs(lim_malik(data * taper_val))
 
-            kbins = np.arange(dk, dk*nw/2, dk)
-            nbins = kbins.size-1
+            kbins = np.arange(dk, dk * nw / 2, dk)
+            nbins = kbins.size - 1
             S = np.zeros((nbins,))
             k = np.zeros((nbins,))
             std = np.zeros((nbins,))
+            ns = np.zeros((nbins,))
 
-            i0 = int((nw-1)/2)
-            iy,ix= np.meshgrid(np.arange(nw), np.arange(nw))
-            kk = np.sqrt( ((ix-i0)*dk)**2 + ((iy-i0)*dk)**2 )
+            i0 = int((nw - 1) / 2)
+            iy, ix = np.meshgrid(np.arange(nw), np.arange(nw))
+            kk = np.sqrt(((ix - i0) * dk) ** 2 + ((iy - i0) * dk) ** 2)
 
             for n in range(nbins):
-                ind = np.logical_and( kk>=kbins[n], kk<kbins[n+1] )
-                rr = 2.0*np.log(Stmp[ind])
+                ind = np.logical_and(kk >= kbins[n], kk < kbins[n + 1])
+                rr = 2.0 * np.log(Stmp[ind])
                 S[n] = np.mean(rr)
                 k[n] = np.mean(kk[ind])
                 std[n] = np.std(rr)
@@ -650,7 +642,7 @@ class Grid2d:
             raise ValueError('Method undefined')
 
         if kcut != 0.0:
-            ind = k<kcut
+            ind = k < kcut
             S = S[ind]
             k = k[ind]
             std = std[ind]
@@ -661,13 +653,13 @@ class Grid2d:
             ind = np.zeros(N, np.bool_)
             # \sum_{s=0}^{s_{max}} n(s+1) & < N \\
             # i_0 + \sum_{m=0}^{s_{max}} n(s+1) & = N
-            n = int( N / np.sum(np.arange(cdecim+2)))
-            i0 = N - np.sum(n*(np.arange(cdecim+1)+1))
+            n = int(N / np.sum(np.arange(cdecim + 2)))
+            i0 = N - np.sum(n * (np.arange(cdecim + 1) + 1))
             ind[:i0] = True
-            for s in range(cdecim+1):
-                i0 += n*s
+            for s in range(cdecim + 1):
+                i0 += n * s
                 for nn in range(n):
-                    ind[i0+(nn+1)*(s+1) - 1] = True
+                    ind[i0 + (nn + 1) * (s + 1) - 1] = True
             S = S[ind]
             k = k[ind]
             std = std[ind]
@@ -679,10 +671,10 @@ class Grid2d:
         std = std[ind]
         ns = ns[ind]
 
-        return S, k, std, ns, flagPad
+        return S, k, std, ns, flag_pad
 
-    def getAzimuthalSpectrum(self, xc, yc, ww, taper=np.hanning, detrend=0,
-                             scalFac=0.001, dtheta=5.0, memest=0, order=10):
+    def get_azimuthal_spectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scal_fac=0.001, dtheta=5.0, memest=0,
+                               order=10):
         """
         Compute radial spectrum for point at (xc,yc) for square window of
         width equal to ww
@@ -699,7 +691,7 @@ class Grid2d:
                    2 : remove mean value
                    3 : remove median value
                    4 : remove mid value, i.e. 0.5 * (max + min)
-        scalFac  : scaling factor to get k in rad/km  (0.001 by default, for grid in m)
+        scal_fac  : scaling factor to get k in rad/km  (0.001 by default, for grid in m)
         dtheta   : angle increment in degrees
         memest   : estimator for method of Srinivasa et al. (1992)
                      If 0, use FFT (the default)
@@ -716,23 +708,23 @@ class Grid2d:
         """
 
         # check if in grid
-        if xc<self.xwest or xc>self.xeast or yc<self.ysouth or yc>self.ynorth:
+        if xc < self.xwest or xc > self.xeast or yc < self.ysouth or yc > self.ynorth:
             raise ValueError('Point outside grid')
 
         if self.dx != self.dy:
             raise RuntimeError('Grid cell size should be equal in x and y')
 
-        data, nw, flagPad = self._getSubgrid(xc, yc, ww, detrend)
+        data, nw, flagPad = self._get_subgrid(xc, yc, ww, detrend)
 
-        dx = self.dx * scalFac  # from m to km
-        dk = 2.0*np.pi / (nw-1) / dx
+        dx = self.dx * scal_fac  # from m to km
+        dk = 2.0 * np.pi / (nw - 1) / dx
 
         # method of Srinivasa et al. 1992
-        k = np.arange(dk, dk*nw/2, dk)
+        k = np.arange(dk, dk * nw / 2, dk)
 
-        theta = np.arange(0.0,180.0,dtheta)
-        sinogram = radon.radon2d(data, np.pi*theta/180.0)
-        SS = np.zeros((theta.size,k.size))
+        theta = np.arange(0.0, 180.0, dtheta)
+        sinogram = radon.radon2d(data, np.pi * theta / 180.0)
+        SS = np.zeros((theta.size, k.size))
 
         taper_val = np.ones(data.shape)
         if taper is tukey:
@@ -742,18 +734,17 @@ class Grid2d:
 
         for n in range(theta.size):
             if memest == 0:
-                PSD = np.abs(np.fft.fft(taper_val * sinogram[:,n], n=1+2*k.size))
+                PSD = np.abs(np.fft.fft(taper_val * sinogram[:, n], n=1 + 2 * k.size))
             else:
-                a, b, rho = spectrum.arma_estimate(taper_val * sinogram[:,n], order, order, 2*order)
-                PSD = spectrum.arma2psd(A=a, B=b, NFFT=1+2*k.size)
-            SS[n,:] = 2.0*np.log( PSD[1:k.size+1] )
+                a, b, rho = spectrum.arma_estimate(taper_val * sinogram[:, n], order, order, 2 * order)
+                PSD = spectrum.arma2psd(A=a, B=b, NFFT=1 + 2 * k.size)
+            SS[n, :] = 2.0 * np.log(PSD[1:k.size + 1])
 
         return SS, k, theta, flagPad
 
 
-
 def bouligand4(beta, zt, dz, kh, C=0.0):
-    '''
+    """
     Equation (4) of Bouligand et al. (2009)
 
     Parameters
@@ -777,18 +768,20 @@ def bouligand4(beta, zt, dz, kh, C=0.0):
     Maus, S., D. Gordon, and D. Fairhead (1997), Curie temperature depth
       estimation using a self-similar magnetization model, Geophys. J. Int.,
       129, 163–168, doi:10.1111/j.1365-246X.1997.tb00945.x
-    '''
-    khdz = kh*dz
+    """
+    khdz = kh * dz
     coshkhdz = np.cosh(khdz)
 
-    Phi1d = C - 2.0*kh*zt - (beta-1.0)*np.log(kh) - khdz
-    A = np.sqrt(np.pi)/gamma(1.0+0.5*beta) * (0.5*coshkhdz*gamma(0.5*(1.0+beta))
-                                              - kv((-0.5*(1.0+beta)), khdz) * np.power(0.5*khdz,(0.5*(1.0+beta)) ))
-    Phi1d += np.log(A)
-    return Phi1d
+    phi1d = C - 2.0 * kh * zt - (beta - 1.0) * np.log(kh) - khdz
+    A = np.sqrt(np.pi) / gamma(1.0 + 0.5 * beta) * (
+            0.5 * coshkhdz * gamma(0.5 * (1.0 + beta)) - kv((-0.5 * (1.0 + beta)), khdz) * np.power(0.5 * khdz, (
+            0.5 * (1.0 + beta))))
+    phi1d += np.log(A)
+    return phi1d
+
 
 def find_beta(dz, Phi_exp, kh, beta0, zt=1.0, C=0, wlf=False, method='fmin', lb=[], ub=[]):
-    '''
+    """
     Find fractal parameter beta for a given radial spectrum
 
     Parameters
@@ -808,7 +801,7 @@ def find_beta(dz, Phi_exp, kh, beta0, zt=1.0, C=0, wlf=False, method='fmin', lb=
     Returns
     -------
         beta, Normalized RMS misfit
-    '''
+    """
     if not np.isscalar(wlf):
         # wlf must be array of size Phi_exp
         w = 1.0 / wlf
@@ -816,12 +809,14 @@ def find_beta(dz, Phi_exp, kh, beta0, zt=1.0, C=0, wlf=False, method='fmin', lb=
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
+
     # define function to minimize
     def func(beta, dz, Phi_exp, zt, kh, C):
-        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
+        return np.sqrt(1.0 / Phi_exp.size * np.sum((w * (Phi_exp - bouligand4(beta, zt, dz, kh, C)) ** 2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=beta0, args=(dz, Phi_exp, zt, kh, C), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
+        xopt = fmin(func, x0=beta0, args=(dz, Phi_exp, zt, kh, C), full_output=True, disp=False, xtol=xtol_fmin,
+                    ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         misfit = xopt[1]
 
@@ -831,7 +826,8 @@ def find_beta(dz, Phi_exp, kh, beta0, zt=1.0, C=0, wlf=False, method='fmin', lb=
         if len(ub) == 0:
             ub = np.array([beta_ub])
 
-        res = least_squares(func, x0=beta0, jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, zt, kh, C), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
+        res = least_squares(func, x0=beta0, jac='3-point', bounds=(lb, ub), args=(dz, Phi_exp, zt, kh, C), xtol=xtol_ls,
+                            ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         misfit = res.cost
 
@@ -840,8 +836,9 @@ def find_beta(dz, Phi_exp, kh, beta0, zt=1.0, C=0, wlf=False, method='fmin', lb=
 
     return beta_opt, misfit
 
+
 def find_zt(dz, Phi_exp, kh, beta, zt0, C=0, wlf=False, method='fmin', lb=[], ub=[]):
-    '''
+    """
     Find depth of top of magnetic layer for a given radial spectrum
 
     Parameters
@@ -861,7 +858,7 @@ def find_zt(dz, Phi_exp, kh, beta, zt0, C=0, wlf=False, method='fmin', lb=[], ub
     Returns
     -------
        zt, Normalized RMS misfit
-    '''
+    """
     if not np.isscalar(wlf):
         # wlf must be array of size Phi_exp
         w = 1.0 / wlf
@@ -869,12 +866,14 @@ def find_zt(dz, Phi_exp, kh, beta, zt0, C=0, wlf=False, method='fmin', lb=[], ub
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
+
     # define function to minimize
     def func(zt, dz, Phi_exp, beta, kh, C):
-        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
+        return np.sqrt(1.0 / Phi_exp.size * np.sum((w * (Phi_exp - bouligand4(beta, zt, dz, kh, C)) ** 2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=zt0, args=(dz, Phi_exp, beta, kh, C), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
+        xopt = fmin(func, x0=zt0, args=(dz, Phi_exp, beta, kh, C), full_output=True, disp=False, xtol=xtol_fmin,
+                    ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         zt_opt = xopt[0][0]
         misfit = xopt[1]
 
@@ -884,7 +883,8 @@ def find_zt(dz, Phi_exp, kh, beta, zt0, C=0, wlf=False, method='fmin', lb=[], ub
         if len(ub) == 0:
             ub = np.array([zt_ub])
 
-        res = least_squares(func, x0=zt0, jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, beta, kh, C), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
+        res = least_squares(func, x0=zt0, jac='3-point', bounds=(lb, ub), args=(dz, Phi_exp, beta, kh, C), xtol=xtol_ls,
+                            ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         zt_opt = res.x[0]
         misfit = res.cost
 
@@ -893,9 +893,10 @@ def find_zt(dz, Phi_exp, kh, beta, zt0, C=0, wlf=False, method='fmin', lb=[], ub
 
     return zt_opt, misfit
 
+
 def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False, method='fmin', lb=[], ub=[]):
-    '''
-    Find thichness of magnetic layer for a given radial spectrum
+    """
+    Find thickness of magnetic layer for a given radial spectrum
 
     Parameters
     ----------
@@ -914,7 +915,7 @@ def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False, method='fmin', lb=[], ub=[
     Returns
     -------
        dz, Normalized RMS misfit
-    '''
+    """
     if not np.isscalar(wlf):
         # wlf must be array of size Phi_exp
         w = 1.0 / wlf
@@ -922,12 +923,14 @@ def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False, method='fmin', lb=[], ub=[
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
+
     # define function to minimize
     def func(dz, zt, Phi_exp, beta, kh, C):
-        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
+        return np.sqrt(1.0 / Phi_exp.size * np.sum((w * (Phi_exp - bouligand4(beta, zt, dz, kh, C)) ** 2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=dz0, args=(zt, Phi_exp, beta, kh, C), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
+        xopt = fmin(func, x0=dz0, args=(zt, Phi_exp, beta, kh, C), full_output=True, disp=False, xtol=xtol_fmin,
+                    ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         dz_opt = xopt[0][0]
         misfit = xopt[1]
 
@@ -937,7 +940,8 @@ def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False, method='fmin', lb=[], ub=[
         if len(ub) == 0:
             ub = np.array([dz_ub])
 
-        res = least_squares(func, x0=dz0, jac='3-point', bounds=(lb,ub), args=(zt, Phi_exp, beta, kh, C), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
+        res = least_squares(func, x0=dz0, jac='3-point', bounds=(lb, ub), args=(zt, Phi_exp, beta, kh, C), xtol=xtol_ls,
+                            ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         dz_opt = res.x[0]
         misfit = res.cost
 
@@ -946,8 +950,9 @@ def find_dz(dz0, Phi_exp, kh, beta, zt, C, wlf=False, method='fmin', lb=[], ub=[
 
     return dz_opt, misfit
 
+
 def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False, method='fmin', lb=[], ub=[]):
-    '''
+    """
     Find field constant for a given radial spectrum
 
     Parameters
@@ -967,7 +972,7 @@ def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False, method='fmin', lb=[], ub=[]
     Returns
     -------
        C, Normalized RMS misfit
-    '''
+    """
     if not np.isscalar(wlf):
         # wlf must be array of size Phi_exp
         w = 1.0 / wlf
@@ -975,12 +980,14 @@ def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False, method='fmin', lb=[], ub=[]
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
+
     # define function to minimize
     def func(C, zt, Phi_exp, beta, kh, dz):
-        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
+        return np.sqrt(1.0 / Phi_exp.size * np.sum((w * (Phi_exp - bouligand4(beta, zt, dz, kh, C)) ** 2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=C0, args=(zt, Phi_exp, beta, kh, dz), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
+        xopt = fmin(func, x0=C0, args=(zt, Phi_exp, beta, kh, dz), full_output=True, disp=False, xtol=xtol_fmin,
+                    ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         C_opt = xopt[0][0]
         misfit = xopt[1]
 
@@ -990,7 +997,8 @@ def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False, method='fmin', lb=[], ub=[]
         if len(ub) == 0:
             ub = np.array([C_ub])
 
-        res = least_squares(func, x0=C0, jac='3-point', bounds=(lb,ub), args=(zt, Phi_exp, beta, kh, dz), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
+        res = least_squares(func, x0=C0, jac='3-point', bounds=(lb, ub), args=(zt, Phi_exp, beta, kh, dz), xtol=xtol_ls,
+                            ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         C_opt = res.x[0]
         misfit = res.cost
 
@@ -1001,7 +1009,7 @@ def find_C(dz, Phi_exp, kh, beta, zt, C0, wlf=False, method='fmin', lb=[], ub=[]
 
 
 def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False, method='fmin', lb=[], ub=[]):
-    '''
+    """
     Find fractal model parameters for a given radial spectrum
 
     Parameters
@@ -1021,7 +1029,7 @@ def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False, method='fmin'
     Returns
     -------
         beta, zt, dz, C, Normalized RMS misfit
-    '''
+    """
     if not np.isscalar(wlf):
         # wlf must be array of size Phi_exp
         w = 1.0 / wlf
@@ -1029,16 +1037,18 @@ def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False, method='fmin'
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
+
     # define function to minimize
     def func(x, Phi_exp, kh):
         beta = x[0]
         zt = x[1]
         dz = x[2]
         C = x[3]
-        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
+        return np.sqrt(1.0 / Phi_exp.size * np.sum((w * (Phi_exp - bouligand4(beta, zt, dz, kh, C)) ** 2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([beta0, zt0, dz0, C0]), args=(Phi_exp, kh), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
+        xopt = fmin(func, x0=np.array([beta0, zt0, dz0, C0]), args=(Phi_exp, kh), full_output=True, disp=False,
+                    xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         dz_opt = xopt[0][2]
@@ -1051,7 +1061,8 @@ def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False, method='fmin'
         if len(ub) == 0:
             ub = np.array([beta_ub, zt_ub, dz_ub, C_ub])
 
-        res = least_squares(func, x0=np.array([beta0, zt0, dz0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
+        res = least_squares(func, x0=np.array([beta0, zt0, dz0, C0]), jac='3-point', bounds=(lb, ub),
+                            args=(Phi_exp, kh), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         zt_opt = res.x[1]
         dz_opt = res.x[2]
@@ -1063,8 +1074,9 @@ def find_beta_zt_dz_C(Phi_exp, kh, beta0, zt0, dz0, C0, wlf=False, method='fmin'
 
     return beta_opt, zt_opt, dz_opt, C_opt, misfit
 
+
 def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb=[], ub=[]):
-    '''
+    """
     Find fractal model parameters, depth of top of magnetic layer and
     constant C for a given radial spectrum and depth to bottom value
 
@@ -1085,7 +1097,7 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb
     Returns
     -------
         beta, zt, C, Normalized RMS misfit
-    '''
+    """
     if not np.isscalar(wlf):
         # wlf must be array of size Phi_exp
         w = 1.0 / wlf
@@ -1095,14 +1107,16 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb
         w = 1.0
     # define function to minimize
     iN = 1.0 / Phi_exp.size
+
     def func(x, Phi_exp, kh, dz):
         beta = x[0]
         zt = x[1]
         C = x[2]
-        return np.sqrt(iN * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
+        return np.sqrt(iN * np.sum((w * (Phi_exp - bouligand4(beta, zt, dz, kh, C)) ** 2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([beta0, zt0, C0]), args=(Phi_exp, kh, dz), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
+        xopt = fmin(func, x0=np.array([beta0, zt0, C0]), args=(Phi_exp, kh, dz), full_output=True, disp=False,
+                    xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         C_opt = xopt[0][2]
@@ -1114,7 +1128,8 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb
         if len(ub) == 0:
             ub = np.array([beta_ub, zt_ub, C_ub])
 
-        res = least_squares(func, x0=np.array([beta0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
+        res = least_squares(func, x0=np.array([beta0, zt0, C0]), jac='3-point', bounds=(lb, ub), args=(Phi_exp, kh, dz),
+                            xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         zt_opt = res.x[1]
         C_opt = res.x[2]
@@ -1126,19 +1141,22 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb
         if len(ub) == 0:
             ub = np.array([beta_ub, zt_ub, C_ub])
 
-        res = least_squares(func, x0=np.array([beta0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
+        res = least_squares(func, x0=np.array([beta0, zt0, C0]), jac='3-point', bounds=(lb, ub), args=(Phi_exp, kh, dz),
+                            xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         zt_opt = res.x[1]
         C_opt = res.x[2]
 
-        xopt = fmin(func, x0=np.array([beta_opt, zt_opt, C_opt]), args=(Phi_exp, kh, dz), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
+        xopt = fmin(func, x0=np.array([beta_opt, zt_opt, C_opt]), args=(Phi_exp, kh, dz), full_output=True, disp=False,
+                    xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         C_opt = xopt[0][2]
         misfit = xopt[1]
 
     elif method == '2sb':
-        xopt = fmin(func, x0=np.array([beta0, zt0, C0]), args=(Phi_exp, kh, dz), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
+        xopt = fmin(func, x0=np.array([beta0, zt0, C0]), args=(Phi_exp, kh, dz), full_output=True, disp=False,
+                    xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         C_opt = xopt[0][2]
@@ -1161,7 +1179,8 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb
         if C_opt > ub[2]:
             C_opt = ub[2]
 
-        res = least_squares(func, x0=np.array([beta_opt, zt_opt, C_opt]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
+        res = least_squares(func, x0=np.array([beta_opt, zt_opt, C_opt]), jac='3-point', bounds=(lb, ub),
+                            args=(Phi_exp, kh, dz), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         zt_opt = res.x[1]
         C_opt = res.x[2]
@@ -1172,8 +1191,9 @@ def find_beta_zt_C(Phi_exp, kh, beta0, zt0, C0, dz, wlf=False, method='fmin', lb
 
     return beta_opt, zt_opt, C_opt, misfit
 
+
 def find_beta_zt_C_bound(Phi_exp, kh, beta, zt, C, zb, wlf=False):
-    '''
+    """
     Find fractal model parameters, depth of top of magnetic layer and
     constant C for a given radial spectrum and depth to bottom value
 
@@ -1190,7 +1210,7 @@ def find_beta_zt_C_bound(Phi_exp, kh, beta, zt, C, zb, wlf=False):
     Returns
     -------
         beta, zt, C, Normalized RMS misfit
-    '''
+    """
     beta0, beta1, beta2 = beta
     zt0, zt1, zt2 = zt
     C0, C1, C2 = C
@@ -1202,28 +1222,32 @@ def find_beta_zt_C_bound(Phi_exp, kh, beta, zt, C, zb, wlf=False):
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
+
     # define function to minimize
     def func(x, Phi_exp, kh, zb):
         beta = x[0]
         zt = x[1]
-        dz = zb-zt
+        dz = zb - zt
         C = x[2]
-        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
+        return np.sqrt(1.0 / Phi_exp.size * np.sum((w * (Phi_exp - bouligand4(beta, zt, dz, kh, C)) ** 2)))
 
     def cons1(x):
-        return beta2-x[0], zt2-x[1], C2-x[2]
-    def cons2(x):
-        return x[1]-beta1, x[1]-zt1, x[2]-C1
+        return beta2 - x[0], zt2 - x[1], C2 - x[2]
 
-    xopt = fmin_cobyla(func, x0=np.array([beta0, zt0, C0]), cons=(cons1,cons2), args=(Phi_exp, kh, zb), consargs=(), disp=False)
+    def cons2(x):
+        return x[1] - beta1, x[1] - zt1, x[2] - C1
+
+    xopt = fmin_cobyla(func, x0=np.array([beta0, zt0, C0]), cons=(cons1, cons2), args=(Phi_exp, kh, zb), consargs=(),
+                       disp=False)
     beta_opt = xopt[0]
     zt_opt = xopt[1]
     C_opt = xopt[2]
     misfit = func(xopt, Phi_exp, kh, zb)
     return beta_opt, zt_opt, C_opt, misfit
 
+
 def find_beta_dz_C(Phi_exp, kh, beta0, dz0, C0, zt=1.0, wlf=False, method='fmin', lb=[], ub=[]):
-    '''
+    """
     Find fractal model parameters, depth of bottom of magnetic layer and
     constant C for a given radial spectrum
 
@@ -1244,7 +1268,7 @@ def find_beta_dz_C(Phi_exp, kh, beta0, dz0, C0, zt=1.0, wlf=False, method='fmin'
     Returns
     -------
         beta, dz, C, Normalized RMS misfit
-    '''
+    """
     if not np.isscalar(wlf):
         # wlf must be array of size Phi_exp
         w = 1.0 / wlf
@@ -1252,15 +1276,17 @@ def find_beta_dz_C(Phi_exp, kh, beta0, dz0, C0, zt=1.0, wlf=False, method='fmin'
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
+
     # define function to minimize
     def func(x, Phi_exp, kh, zt):
         beta = x[0]
         dz = x[1]
         C = x[2]
-        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
+        return np.sqrt(1.0 / Phi_exp.size * np.sum((w * (Phi_exp - bouligand4(beta, zt, dz, kh, C)) ** 2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([beta0, dz0, C0]), args=(Phi_exp, kh, zt), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
+        xopt = fmin(func, x0=np.array([beta0, dz0, C0]), args=(Phi_exp, kh, zt), full_output=True, disp=False,
+                    xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         dz_opt = xopt[0][1]
         C_opt = xopt[0][2]
@@ -1272,7 +1298,8 @@ def find_beta_dz_C(Phi_exp, kh, beta0, dz0, C0, zt=1.0, wlf=False, method='fmin'
         if len(ub) == 0:
             ub = np.array([beta_ub, dz_ub, C_ub])
 
-        res = least_squares(func, x0=np.array([beta0, dz0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, zt), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
+        res = least_squares(func, x0=np.array([beta0, dz0, C0]), jac='3-point', bounds=(lb, ub), args=(Phi_exp, kh, zt),
+                            xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         dz_opt = res.x[1]
         C_opt = res.x[2]
@@ -1283,8 +1310,9 @@ def find_beta_dz_C(Phi_exp, kh, beta0, dz0, C0, zt=1.0, wlf=False, method='fmin'
 
     return beta_opt, dz_opt, C_opt, misfit
 
+
 def find_beta_dz_zt(Phi_exp, kh, beta0, dz0, zt0, C, wlf=False, method='fmin', lb=[], ub=[]):
-    '''
+    """
     Find fractal model parameters, depth of bottom and depth to top of magnetic
     layer for a given radial spectrum
 
@@ -1305,7 +1333,7 @@ def find_beta_dz_zt(Phi_exp, kh, beta0, dz0, zt0, C, wlf=False, method='fmin', l
     Returns
     -------
         beta, dz, zt, Normalized RMS misfit
-    '''
+    """
     if not np.isscalar(wlf):
         # wlf must be array of size Phi_exp
         w = 1.0 / wlf
@@ -1313,15 +1341,17 @@ def find_beta_dz_zt(Phi_exp, kh, beta0, dz0, zt0, C, wlf=False, method='fmin', l
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
+
     # define function to minimize
     def func(x, Phi_exp, kh, C):
         beta = x[0]
         dz = x[1]
         zt = x[2]
-        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
+        return np.sqrt(1.0 / Phi_exp.size * np.sum((w * (Phi_exp - bouligand4(beta, zt, dz, kh, C)) ** 2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([beta0, dz0, zt0]), args=(Phi_exp, kh, C), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
+        xopt = fmin(func, x0=np.array([beta0, dz0, zt0]), args=(Phi_exp, kh, C), full_output=True, disp=False,
+                    xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         dz_opt = xopt[0][1]
         zt_opt = xopt[0][2]
@@ -1333,7 +1363,8 @@ def find_beta_dz_zt(Phi_exp, kh, beta0, dz0, zt0, C, wlf=False, method='fmin', l
         if len(ub) == 0:
             ub = np.array([beta_ub, dz_ub, zt_ub])
 
-        res = least_squares(func, x0=np.array([beta0, dz0, zt0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, C), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
+        res = least_squares(func, x0=np.array([beta0, dz0, zt0]), jac='3-point', bounds=(lb, ub), args=(Phi_exp, kh, C),
+                            xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         dz_opt = res.x[1]
         zt_opt = res.x[2]
@@ -1344,8 +1375,9 @@ def find_beta_dz_zt(Phi_exp, kh, beta0, dz0, zt0, C, wlf=False, method='fmin', l
 
     return beta_opt, dz_opt, zt_opt, misfit
 
+
 def find_beta_zt(dz, Phi_exp, kh, beta0, zt0, C=0, wlf=False, method='fmin', lb=[], ub=[]):
-    '''
+    """
     Find fractal parameter beta and depth of top of magnetic layer for a given radial spectrum
 
     Parameters
@@ -1365,7 +1397,7 @@ def find_beta_zt(dz, Phi_exp, kh, beta0, zt0, C=0, wlf=False, method='fmin', lb=
     Returns
     -------
         beta, zt, Normalized RMS misfit
-    '''
+    """
     if not np.isscalar(wlf):
         # wlf must be array of size Phi_exp
         w = 1.0 / wlf
@@ -1373,14 +1405,16 @@ def find_beta_zt(dz, Phi_exp, kh, beta0, zt0, C=0, wlf=False, method='fmin', lb=
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
+
     # define function to minimize
     def func(x, dz, Phi_exp, kh, C):
         beta = x[0]
         zt = x[1]
-        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
+        return np.sqrt(1.0 / Phi_exp.size * np.sum((w * (Phi_exp - bouligand4(beta, zt, dz, kh, C)) ** 2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([beta0, zt0]), args=(dz, Phi_exp, kh, C), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
+        xopt = fmin(func, x0=np.array([beta0, zt0]), args=(dz, Phi_exp, kh, C), full_output=True, disp=False,
+                    xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         misfit = xopt[1]
@@ -1391,7 +1425,8 @@ def find_beta_zt(dz, Phi_exp, kh, beta0, zt0, C=0, wlf=False, method='fmin', lb=
         if len(ub) == 0:
             ub = np.array([beta_ub, zt_ub])
 
-        res = least_squares(func, x0=np.array([beta0, zt0]), jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, kh, C), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
+        res = least_squares(func, x0=np.array([beta0, zt0]), jac='3-point', bounds=(lb, ub), args=(dz, Phi_exp, kh, C),
+                            xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         zt_opt = res.x[1]
         misfit = res.cost
@@ -1401,8 +1436,9 @@ def find_beta_zt(dz, Phi_exp, kh, beta0, zt0, C=0, wlf=False, method='fmin', lb=
 
     return beta_opt, zt_opt, misfit
 
+
 def find_beta_C(dz, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False, method='fmin', lb=[], ub=[]):
-    '''
+    """
     Find fractal parameter beta and constant C for a given radial spectrum
 
     Parameters
@@ -1422,7 +1458,7 @@ def find_beta_C(dz, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False, method='fmin', lb
     Returns
     -------
         beta, C, Normalized RMS misfit
-    '''
+    """
     if not np.isscalar(wlf):
         # wlf must be array of size Phi_exp
         w = 1.0 / wlf
@@ -1430,14 +1466,16 @@ def find_beta_C(dz, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False, method='fmin', lb
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
+
     # define function to minimize
     def func(x, dz, Phi_exp, kh, zt):
         beta = x[0]
         C = x[1]
-        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
+        return np.sqrt(1.0 / Phi_exp.size * np.sum((w * (Phi_exp - bouligand4(beta, zt, dz, kh, C)) ** 2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([beta0, C0]), args=(dz, Phi_exp, kh, zt), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
+        xopt = fmin(func, x0=np.array([beta0, C0]), args=(dz, Phi_exp, kh, zt), full_output=True, disp=False,
+                    xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         beta_opt = xopt[0][0]
         C_opt = xopt[0][1]
         misfit = xopt[1]
@@ -1448,7 +1486,8 @@ def find_beta_C(dz, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False, method='fmin', lb
         if len(ub) == 0:
             ub = np.array([beta_ub, C_ub])
 
-        res = least_squares(func, x0=np.array([beta0, C0]), jac='3-point', bounds=(lb,ub), args=(dz, Phi_exp, kh, zt), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
+        res = least_squares(func, x0=np.array([beta0, C0]), jac='3-point', bounds=(lb, ub), args=(dz, Phi_exp, kh, zt),
+                            xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         beta_opt = res.x[0]
         C_opt = res.x[1]
         misfit = res.cost
@@ -1458,8 +1497,9 @@ def find_beta_C(dz, Phi_exp, kh, beta0, C0, zt=1.0, wlf=False, method='fmin', lb
 
     return beta_opt, C_opt, misfit
 
+
 def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], ub=[]):
-    '''
+    """
     Find fractal depth of top and thickness of magnetic layer for a given radial spectrum
 
     Parameters
@@ -1478,7 +1518,7 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
     Returns
     -------
         dz, zt, Normalized RMS misfit
-    '''
+    """
     if not np.isscalar(wlf):
         # wlf must be array of size Phi_exp
         w = 1.0 / wlf
@@ -1486,14 +1526,16 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
+
     # define function to minimize
     def func(x, Phi_exp, kh, beta, C):
         dz = x[0]
         zt = x[1]
-        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
+        return np.sqrt(1.0 / Phi_exp.size * np.sum((w * (Phi_exp - bouligand4(beta, zt, dz, kh, C)) ** 2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([dz0, zt0]), args=(Phi_exp, kh, beta, C), disp=False, full_output=True, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
+        xopt = fmin(func, x0=np.array([dz0, zt0]), args=(Phi_exp, kh, beta, C), disp=False, full_output=True,
+                    xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         dz_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         misfit = xopt[1]
@@ -1504,7 +1546,8 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
         if len(ub) == 0:
             ub = np.array([dz_ub, zt_ub])
 
-        res = least_squares(func, x0=np.array([dz0, zt0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta, C), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
+        res = least_squares(func, x0=np.array([dz0, zt0]), jac='3-point', bounds=(lb, ub), args=(Phi_exp, kh, beta, C),
+                            xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         dz_opt = res.x[0]
         zt_opt = res.x[1]
         misfit = res.cost
@@ -1514,8 +1557,9 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
 
     return dz_opt, zt_opt, misfit
 
+
 # def find_zb(Phi_exp, kh, beta, zt, zb0, C=0.0, wlf=False, method='fmin', lb=[], ub=[]):
-#     '''
+#     """
 #     Find depth to bottom of magnetic slab for a given radial spectrum
 #
 #     Parameters
@@ -1535,7 +1579,7 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
 #     Returns
 #     -------
 #         zb, Normalized RMS misfit
-#     '''
+#     """
 #     if not np.isscalar(wlf):
 #         # wlf must be array of size Phi_exp
 #         w = 1.0 / wlf
@@ -1566,7 +1610,7 @@ def find_dz_zt(Phi_exp, kh, dz0, zt0, beta, C, wlf=False, method='fmin', lb=[], 
 #     return zb_opt[0], misfit
 
 def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[], ub=[]):
-    '''
+    """
     Find fractal model parameters for a given radial spectrum
 
     Parameters
@@ -1586,7 +1630,7 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
     Returns
     -------
         dz, zt, C, Normalized RMS misfit
-    '''
+    """
     if not np.isscalar(wlf):
         # wlf must be array of size Phi_exp
         w = 1.0 / wlf
@@ -1594,15 +1638,17 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
         w = np.linspace(1.5, 0.5, Phi_exp.size)
     else:
         w = 1.0
+
     # define function to minimize
     def func(x, Phi_exp, kh, beta):
         dz = x[0]
         zt = x[1]
         C = x[2]
-        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
+        return np.sqrt(1.0 / Phi_exp.size * np.sum((w * (Phi_exp - bouligand4(beta, zt, dz, kh, C)) ** 2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([dz0, zt0, C0]), args=(Phi_exp, kh, beta), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
+        xopt = fmin(func, x0=np.array([dz0, zt0, C0]), args=(Phi_exp, kh, beta), full_output=True, disp=False,
+                    xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         dz_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         C_opt = xopt[0][2]
@@ -1614,7 +1660,8 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
         if len(ub) == 0:
             ub = np.array([dz_ub, zt_ub, C_ub])
 
-        res = least_squares(func, x0=np.array([dz0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
+        res = least_squares(func, x0=np.array([dz0, zt0, C0]), jac='3-point', bounds=(lb, ub), args=(Phi_exp, kh, beta),
+                            xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         dz_opt = res.x[0]
         zt_opt = res.x[1]
         C_opt = res.x[2]
@@ -1627,19 +1674,22 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
         if len(ub) == 0:
             ub = np.array([dz_ub, zt_ub, C_ub])
 
-        res = least_squares(func, x0=np.array([dz0, zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
+        res = least_squares(func, x0=np.array([dz0, zt0, C0]), jac='3-point', bounds=(lb, ub), args=(Phi_exp, kh, beta),
+                            xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         dz_opt = res.x[0]
         zt_opt = res.x[1]
         C_opt = res.x[2]
 
-        xopt = fmin(func, x0=np.array([dz_opt, zt_opt, C_opt]), args=(Phi_exp, kh, beta), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
+        xopt = fmin(func, x0=np.array([dz_opt, zt_opt, C_opt]), args=(Phi_exp, kh, beta), full_output=True, disp=False,
+                    xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         dz_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         C_opt = xopt[0][2]
         misfit = xopt[1]
 
     elif method == '2sb':
-        xopt = fmin(func, x0=np.array([dz0, zt0, C0]), args=(Phi_exp, kh, beta), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
+        xopt = fmin(func, x0=np.array([dz0, zt0, C0]), args=(Phi_exp, kh, beta), full_output=True, disp=False,
+                    xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         dz_opt = xopt[0][0]
         zt_opt = xopt[0][1]
         C_opt = xopt[0][2]
@@ -1662,7 +1712,8 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
         if C_opt > ub[2]:
             C_opt = ub[2]
 
-        res = least_squares(func, x0=np.array([dz_opt, zt_opt, C_opt]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, beta), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
+        res = least_squares(func, x0=np.array([dz_opt, zt_opt, C_opt]), jac='3-point', bounds=(lb, ub),
+                            args=(Phi_exp, kh, beta), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         dz_opt = res.x[0]
         zt_opt = res.x[1]
         C_opt = res.x[2]
@@ -1673,8 +1724,9 @@ def find_dz_zt_C(Phi_exp, kh, beta, dz0, zt0, C0, wlf=False, method='fmin', lb=[
 
     return dz_opt, zt_opt, C_opt, misfit
 
+
 def find_zt_C(Phi_exp, kh, beta, dz, zt0, C0, wlf=False, method='fmin', lb=[], ub=[]):
-    '''
+    """
     Find fractal model parameters for a given radial spectrum
 
     Parameters
@@ -1694,7 +1746,7 @@ def find_zt_C(Phi_exp, kh, beta, dz, zt0, C0, wlf=False, method='fmin', lb=[], u
     Returns
     -------
         zt, C, Normalized RMS misfit
-    '''
+    """
     if not np.isscalar(wlf):
         # wlf must be array of size Phi_exp
         w = 1.0 / wlf
@@ -1703,14 +1755,16 @@ def find_zt_C(Phi_exp, kh, beta, dz, zt0, C0, wlf=False, method='fmin', lb=[], u
 
     else:
         w = 1.0
+
     # define function to minimize
     def func(x, Phi_exp, kh, dz, beta):
         zt = x[0]
         C = x[1]
-        return np.sqrt(1.0/Phi_exp.size * np.sum((w*(Phi_exp - bouligand4(beta, zt, dz, kh, C))**2)))
+        return np.sqrt(1.0 / Phi_exp.size * np.sum((w * (Phi_exp - bouligand4(beta, zt, dz, kh, C)) ** 2)))
 
     if method == 'fmin':
-        xopt = fmin(func, x0=np.array([zt0, C0]), args=(Phi_exp, kh, dz, beta), full_output=True, disp=False, xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
+        xopt = fmin(func, x0=np.array([zt0, C0]), args=(Phi_exp, kh, dz, beta), full_output=True, disp=False,
+                    xtol=xtol_fmin, ftol=ftol_fmin, maxiter=maxiter_fmin, maxfun=maxfun_fmin)
         zt_opt = xopt[0][0]
         C_opt = xopt[0][1]
         misfit = xopt[1]
@@ -1721,7 +1775,8 @@ def find_zt_C(Phi_exp, kh, beta, dz, zt0, C0, wlf=False, method='fmin', lb=[], u
         if len(ub) == 0:
             ub = np.array([zt_ub, C_ub])
 
-        res = least_squares(func, x0=np.array([zt0, C0]), jac='3-point', bounds=(lb,ub), args=(Phi_exp, kh, dz, beta), xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
+        res = least_squares(func, x0=np.array([zt0, C0]), jac='3-point', bounds=(lb, ub), args=(Phi_exp, kh, dz, beta),
+                            xtol=xtol_ls, ftol=ftol_ls, gtol=gtol_ls, max_nfev=max_nfev_ls)
         zt_opt = res.x[0]
         C_opt = res.x[1]
         misfit = res.cost
@@ -1731,20 +1786,23 @@ def find_zt_C(Phi_exp, kh, beta, dz, zt0, C0, wlf=False, method='fmin', lb=[], u
 
     return zt_opt, C_opt, misfit
 
+
 def hfu(x):
-    '''
+    """
     Transform HFU (heat flow unit) into mW/m2
-    '''
-    return x*41.86
+    """
+    return x * 41.86
+
 
 def hgu(x):
-    '''
+    """
     Transform HGU (heat generation unit) into µW/m3
-    '''
-    return x*0.418
+    """
+    return x * 0.418
+
 
 def lachenbruch(Q0, A0, k, z, D=7500.0):
-    '''
+    """
     Temperature as a fct of depth (Lachenbruch and Sass, 1977)
 
     Parameters
@@ -1758,13 +1816,12 @@ def lachenbruch(Q0, A0, k, z, D=7500.0):
     Returns
     -------
         Temperature at z           [°C]
-    '''
-    return z*(Q0*1.e-3 - D*A0*1.e-6)/k + (D*D*A0*1.e-6 * (1. - np.exp(-z/D)) )/k
-
+    """
+    return z * (Q0 * 1.e-3 - D * A0 * 1.e-6) / k + (D * D * A0 * 1.e-6 * (1. - np.exp(-z / D))) / k
 
 
 def lachenbruch_z(Q0, A0, k, T, D=7500.0):
-    '''
+    """
     Depth as fct of temperature (infered from the model of Lachenbruch and Sass, 1977)
 
     Parameters
@@ -1778,17 +1835,19 @@ def lachenbruch_z(Q0, A0, k, T, D=7500.0):
     Returns
     -------
         Depth                      [m]
-    '''
-    Q = Q0*1.e-3
-    A = A0*1.e-6
-    z = (A*D**2 + D*(A*D - Q) * lambertw(-A*D*np.exp((-A*D**2 + k*T)/(D*(A*D - Q)))/(A*D - Q)) - k*T)/(A*D - Q)
+    """
+    Q = Q0 * 1.e-3
+    A = A0 * 1.e-6
+    z = (A * D ** 2 + D * (A * D - Q) * lambertw(
+        -A * D * np.exp((-A * D ** 2 + k * T) / (D * (A * D - Q))) / (A * D - Q)) - k * T) / (A * D - Q)
     if np.isreal(z):
         return z.real
     else:
         raise ValueError('Complex depth returned')
 
+
 def find_zb_lach(T, Q0, A0, k, z1, z2, D=7500.0):
-    '''
+    """
     Find depth for a given temperature using eq of Lachenbruch and Sass (1977)
 
     Parameters
@@ -1804,15 +1863,17 @@ def find_zb_lach(T, Q0, A0, k, z1, z2, D=7500.0):
     Returns
     -------
         optimal depth
-    '''
+    """
+
     def func(z, T, Q0, A0, k, D):
         return np.abs(T - lachenbruch(Q0, A0, k, z, D))
 
     z_opt = fminbound(func, z1, z2, args=(T, Q0, A0, k, D), disp=0)
     return z_opt
 
+
 def find_D_lach(T, z, Q0, A0, k, D1, D2):
-    '''
+    """
     Find characteristic depth for a given temperature - depth pair
 
     Parameters
@@ -1828,7 +1889,8 @@ def find_D_lach(T, z, Q0, A0, k, D1, D2):
     Returns
     -------
         optimal depth
-    '''
+    """
+
     def func(D, T, Q0, A0, k, z):
         return np.abs(T - lachenbruch(Q0, A0, k, z, D))
 
@@ -1837,7 +1899,7 @@ def find_D_lach(T, z, Q0, A0, k, D1, D2):
 
 
 def find_zb_okubo(S, k, k_cut):
-    ind = k>k_cut
+    ind = k > k_cut
     x = k[ind]
     y = S[ind]
     A = np.vstack([x, np.ones(len(x))]).T
@@ -1846,13 +1908,13 @@ def find_zb_okubo(S, k, k_cut):
     ind = np.logical_not(ind)
 
     x = k[ind]
-    G = np.log(np.exp(S[ind])/(x*x))
+    G = np.log(np.exp(S[ind]) / (x * x))
     y = G
     A = np.vstack([x, np.ones(len(x))]).T
     zo, c = lstsq(A, y)[0]
     zo = -zo;
     zt = -zt
-    return 2*zo - zt
+    return 2 * zo - zt
 
 
 if __name__ == '__main__':
@@ -1870,7 +1932,7 @@ if __name__ == '__main__':
     for n in range(100):
         Phi_exp = bouligand4(beta, zt, dz, kh, C)
     t2 = time.process_time()
-    print('Time : ',str(t2-t1))
+    print('Time : ', str(t2 - t1))
     zb = zt + dz
     beta_opt, fopt = find_beta(dz, Phi_exp, kh, beta0=1.5, C=C)
     print(beta_opt, fopt)
@@ -1879,8 +1941,7 @@ if __name__ == '__main__':
     print(beta_opt, zt_opt, fopt)
 
     dz_opt, fopt = find_dz(15, Phi_exp, kh, beta_opt, zt_opt, C=C)
-    print('dz_opt = '+str(dz_opt))
-
+    print('dz_opt = ' + str(dz_opt))
 
     # 5% noise
     Phi_exp += 0.05 * np.random.rand(Phi_exp.shape[0]) * Phi_exp
@@ -1890,38 +1951,36 @@ if __name__ == '__main__':
     print(beta_opt, zt_opt, fopt)
 
     dz_opt, fopt = find_dz(15, Phi_exp, kh, beta_opt, zt_opt, C=5.0)
-    print('dz_opt = '+str(dz_opt))
+    print('dz_opt = ' + str(dz_opt))
 
-    zb = find_zb_okubo(Phi_exp, kh/(2*np.pi), 0.05)
+    zb = find_zb_okubo(Phi_exp, kh / (2 * np.pi), 0.05)
     print(zb)
-
 
     show_plots = False
 
     if show_plots:
-        plt.subplot(1,3,1)
+        plt.subplot(1, 3, 1)
         for v in np.arange(0.0, 2.5, 0.5):
-            plt.semilogx(kh, bouligand4(beta, v, dz, kh, C),'k')
+            plt.semilogx(kh, bouligand4(beta, v, dz, kh, C), 'k')
             plt.hold(True)
-        plt.xlim(0.001,3)
+        plt.xlim(0.001, 3)
 
         C = -9.0
-        plt.subplot(1,3,2)
+        plt.subplot(1, 3, 2)
         for v in [10.0, 20.0, 50.0, 100.0, 200.0]:
-            plt.semilogx(kh, bouligand4(beta, zt, v, kh, C),'k')
+            plt.semilogx(kh, bouligand4(beta, zt, v, kh, C), 'k')
             plt.hold(True)
-        plt.semilogx(kh, C-2.0*kh*zt - (beta-1.0)*np.log(kh),'r')
-        plt.xlim(0.001,3)
+        plt.semilogx(kh, C - 2.0 * kh * zt - (beta - 1.0) * np.log(kh), 'r')
+        plt.xlim(0.001, 3)
 
-        plt.subplot(1,3,3)
+        plt.subplot(1, 3, 3)
         for v in np.arange(0.0, 5.0):
-            plt.semilogx(kh, bouligand4(v, zt, dz, kh, C),'k')
+            plt.semilogx(kh, bouligand4(v, zt, dz, kh, C), 'k')
             plt.hold(True)
-        plt.semilogx(kh, C-2.0*kh*zt + 2.0*np.log(1.0- np.exp(-kh*dz)),'r')
-        plt.xlim(0.001,3)
+        plt.semilogx(kh, C - 2.0 * kh * zt + 2.0 * np.log(1.0 - np.exp(-kh * dz)), 'r')
+        plt.xlim(0.001, 3)
 
         plt.show()
-
 
     T = 580.0
     Q0 = 20.0
@@ -1931,11 +1990,11 @@ if __name__ == '__main__':
 
     z = find_zb_lach(T, Q0, A0, k, 10000.0, 100000.0)
     z1 = lachenbruch_z(Q0, A0, k, T)
-    print('Lach: '+str(z)+'      '+str(z1))
+    print('Lach: ' + str(z) + '      ' + str(z1))
 
     Tz = lachenbruch(Q0, A0, k, z)
     Tz1 = lachenbruch(Q0, A0, k, z1)
-    print(T-Tz, T-Tz1)
+    print(T - Tz, T - Tz1)
 
     testFFTMA = False
     testSpec = True
@@ -1948,8 +2007,7 @@ if __name__ == '__main__':
         grid.dx = 0.5
         grid.dy = 0.5
 
-        cm = [geostat.CovarianceNugget(0.2),
-              geostat.CovarianceSpherical(np.array([250.0,200.0]), np.array([0]), 2.5)]
+        cm = [geostat.CovarianceNugget(0.2), geostat.CovarianceSpherical(np.array([250.0, 200.0]), np.array([0]), 2.5)]
 
         G = grid.preFFTMA(cm)
 
@@ -1958,53 +2016,52 @@ if __name__ == '__main__':
         plt.show()
 
     if testSpec:
-        g = Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
+        g = Grid2d(
+            '+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
         g.readnc('/Users/giroux/JacquesCloud/Projets/CPD/NAmag/Qc_lcc_k.nc')
 
-#         S, k, std, ns, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0,
-#                                              tukey, detrend=1, cdecim=5, kcut=2.0)
+        #         S, k, std, ns, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0,
+        #                                              tukey, detrend=1, cdecim=5, kcut=2.0)
 
-        S, k, std, ns, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0,
-                                             tukey, detrend=1)
+        S, k, std, ns, flag = g.get_radial_spectrum(1606000.0, -1963000.0, 500000.0, tukey, detrend=1)
 
-        S2, k2, std2, ns2, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0, tukey,
-                                                detrend=1, logspace=40, padding=2)
+        S2, k2, std2, ns2, flag = g.get_radial_spectrum(1606000.0, -1963000.0, 500000.0, tukey, detrend=1, logspace=40,
+                                                        padding=2)
 
-
-        beta1,C1, misfit = find_beta_C(dz+zt, S, k, 3.0, 25.0)
+        beta1, C1, misfit = find_beta_C(dz + zt, S, k, 3.0, 25.0)
 
         Phi_exp = bouligand4(beta1, zt, dz, k, C1)
 
-        S3, k3, std3, ns3, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 250000.0,
-                                                tukey, detrend=1, order=5, mem=1)
+        S3, k3, std3, ns3, flag = g.get_radial_spectrum(1606000.0, -1963000.0, 250000.0, tukey, detrend=1, order=5,
+                                                        mem=1)
 
         plt.figure()
         plt.semilogx(k, S, '-', k2, S2, 'o', k3, S3, ':', k, Phi_exp, '*')
-        plt.legend(('1','2','3', '4'))
+        plt.legend(('1', '2', '3', '4'))
         plt.show(block=False)
-
 
         plt.figure()
         l1, l2 = plt.semilogx(k, S, '-', k2, S2, 'o')
-        l3 = plt.fill_between(k, S-std, S+std)
+        l3 = plt.fill_between(k, S - std, S + std)
         l3.set_alpha(0.2)
-        l4 = plt.fill_between(k2, S2-std2, S2+std2)
+        l4 = plt.fill_between(k2, S2 - std2, S2 + std2)
         l4.set_alpha(0.2)
         plt.show(block=False)
 
         plt.figure()
         plt.loglog(k, ns, '-', k2, ns2, 'o', k3, ns3, ':')
-        plt.legend(('1','2','3'))
+        plt.legend(('1', '2', '3'))
         plt.title('N_s')
         plt.show()
 
         print('Done')
 
     if testAz:
-        g = Grid2d('+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
+        g = Grid2d(
+            '+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
         g.readnc('/Users/giroux/JacquesCloud/Projets/CPD/NAmag/Qc_lcc_k.nc')
 
-        S, k, theta, flag = g.getAzimuthalSpectrum(1606000.0, -1963000.0, 500000.0, tukey, 1)
+        S, k, theta, flag = g.get_azimuthal_spectrum(1606000.0, -1963000.0, 500000.0, tukey, 1)
 
         fig, ax = plt.subplots()
         ax.set_xscale('log')
