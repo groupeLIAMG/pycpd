@@ -194,17 +194,34 @@ def proj4string2cartopy(proj4string):
             false_northing = float(params['y_0'])
         if 'lat_1' in params and 'lat_2' in params:
             standard_parallels = (float(params['lat_1']), float(params['lat_2']))
-        
-        proj = ccrs.LambertConformal(central_longitude=central_longitude,
-                                     central_latitude=central_latitude,
-                                     false_easting=false_easting,
-                                     false_northing=false_northing,
-                                     secant_latitudes=secant_latitudes,
-                                     standard_parallels=standard_parallels,
-                                     globe=globe,
-                                     cutoff=cutoff)
+
+        proj = ccrs.LambertConformal(central_longitude=central_longitude, central_latitude=central_latitude,
+                                     false_easting=false_easting, false_northing=false_northing,
+                                     secant_latitudes=secant_latitudes, standard_parallels=standard_parallels,
+                                     globe=globe, cutoff=cutoff)
+    elif params['proj'] == 'tmerc':
+        central_longitude = 0.0
+        central_latitude = 0.0
+        false_easting = 0.0
+        false_northing = 0.0
+        scale_factor = 1.0
+
+        if 'lon_0' in params:
+            central_longitude = float(params['lon_0'])
+        if 'lat_0' in params:
+            central_latitude = float(params['lat_0'])
+        if 'x_0' in params:
+            false_easting = float(params['x_0'])
+        if 'y_0' in params:
+            false_northing = float(params['y_0'])
+        if 'k_0' in params:
+            scale_factor = float(params['k_0'])
+
+        proj = ccrs.TransverseMercator(central_longitude=central_longitude, central_latitude=central_latitude,
+                                       false_easting=false_easting, false_northing=false_northing,
+                                       scale_factor=scale_factor, globe=globe)
     else:
-        raise NotImplementedError('Projection '+params['proj']+' not yet implemented')
+        raise NotImplementedError('Projection ' + params['proj'] + ' not yet implemented')
 
     return proj
 
