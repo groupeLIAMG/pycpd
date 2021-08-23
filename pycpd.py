@@ -641,7 +641,8 @@ class ProjSelection(QDialog):
 
         item_ls = (
         'Québec : +proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
-        'DNAG : +proj=tmerc +k_0=0.926 _lat_0=0.0 +lon_0=-100.0 +a=6371204.0 +b=6371204.0 +x_0=0 +y_0=0 +units=m +no_defs')
+        'DNAG : +proj=tmerc +k_0=0.926 _lat_0=0.0 +lon_0=-100.0 +a=6371204.0 +b=6371204.0 +x_0=0 +y_0=0 +units=m +no_defs',
+        'Infer from data file (use GDAL driver to read file)')
 
         for item in item_ls:
             w_item = QListWidgetItem(item)
@@ -678,7 +679,10 @@ class ProjSelection(QDialog):
         if len(val) == 2:
             self.result = val[1]
         else:
-            self.result = val[0]
+            if 'Infer from data file' in val[0]:
+                self.result = 'gdal'
+            else:
+                self.result = val[0]
         self.proj4string.setText(self.result)
         self.proj4string.setCursorPosition(0)
 
@@ -1127,15 +1131,24 @@ class PyCPD(QMainWindow):
         else:
             return
 
-        fname = QFileDialog.getOpenFileName(self, 'Open file', self.mag_path, 'netcdf (*.nc *.grd);;USGS (*.SGD)')
+        if proj4string == 'gdal':
+            selected_filter = 'GDAL driver (*.*)'
+        else:
+            selected_filter = ''
+
+        fname = QFileDialog.getOpenFileName(self, 'Open file', self.mag_path,
+                                            filter='netcdf (*.nc *.grd);;USGS (*.SGD);;GDAL driver (*.*)',
+                                            initialFilter=selected_filter)
+
         if fname[0]:
             try:
+                self.grid = cpd.Grid2d(proj4string)
                 if fname[1] == 'USGS (*.SGD)':
-                    self.grid = cpd.Grid2d(proj4string)
                     self.grid.readUSGSfile(fname[0])
                 elif fname[1] == 'netcdf (*.nc *.grd)':
-                    self.grid = cpd.Grid2d(proj4string)
-                    self.grid.readnc(fname[0])
+                    self.grid.read_nc(fname[0])
+                elif fname[1] == 'GDAL driver (*.*)':
+                    self.grid.read_gdal(fname[0])
 
                 self.mag_path = os.path.dirname(fname[0])
                 self.locmap.draw_map(self.grid)
@@ -1145,6 +1158,15 @@ class PyCPD(QMainWindow):
             except IOError:
                 QMessageBox.warning(self, 'Warning', 'Error loading mag data', QMessageBox.Ok)
                 self.grid = oldgrid
+            except AttributeError as e:
+                if 'ExportToProj4' in e.args[0]:
+                    QMessageBox.critical(self, 'Error',
+                                         'Projection information not found by GDAL driver in file '+fname[0],
+                                         QMessageBox.Ok)
+                    self.grid = oldgrid
+                else:
+                    QMessageBox.warning(self, 'Warning', str(e.args[0], 'utf-8'), QMessageBox.Ok)
+                    self.grid = oldgrid
 
     def load_project(self):
         fname = QFileDialog.getOpenFileName(self, 'Open file', os.path.expanduser('~/'), 'Mac OS (*.db);;Linux (*.dat)')

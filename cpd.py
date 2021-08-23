@@ -32,6 +32,7 @@ import netCDF4
 import numpy as np
 import pyproj
 import spectrum
+from osgeo import gdal
 from scipy.linalg import lstsq
 from scipy.optimize import fmin, fminbound, fmin_cobyla, least_squares
 from scipy.signal.windows import tukey
@@ -351,13 +352,24 @@ class Grid2d:
             self.data = np.array(dataset.variables['z'])
         dataset.close()
 
-        if proj:
-            try:
-                lcc = pyproj.Proj(self.proj4string)
-                self.c0 = lcc(self.xwest, self.ysouth, inverse=True)
-                self.c1 = lcc(self.xeast, self.ynorth, inverse=True)
-            except RuntimeError as e:
-                raise e
+    def read_gdal(self, fname):
+        raster = gdal.Open(fname)
+
+        if self.proj4string == 'gdal':
+            self.proj4string = raster.GetSpatialRef().ExportToProj4()
+
+        geo_transform = raster.GetGeoTransform()
+        self.dx = geo_transform[1]
+        self.dy = -geo_transform[5]
+        self.xwest = geo_transform[0]
+        self.xeast = self.xwest + geo_transform[1] * raster.RasterXSize
+
+        self.ynorth = geo_transform[3]
+        self.ysouth = self.ynorth + geo_transform[5] * raster.RasterYSize
+
+        self.ncol = raster.RasterXSize
+        self.nrow = raster.RasterYSize
+        self.data = raster.ReadAsArray()
 
     def preFFTMA(self, cm):
         """
