@@ -153,7 +153,7 @@ class MapCanvas(MyMplCanvas):
         if self.cb is not None:
             self.cb.remove()
 
-        extent = (grid.xwest.data, grid.xeast.data, grid.ysouth.data, grid.ynorth.data)
+        extent = (grid.xwest, grid.xeast, grid.ysouth, grid.ynorth)
 
         projection = cpd.proj4string2cartopy(grid.proj4string)
 
@@ -1459,7 +1459,7 @@ if __name__ == '__main__':
 
         ex.grid = cpd.Grid2d(
             '+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
-        ex.grid.readnc('data/Qc_lcc_clipped.nc')
+        ex.grid.read_nc('data/Qc_lcc_clipped.nc')
         ex.locmap.draw_map(ex.grid)
         ex.locmap.update_bh_loc(ex.forages[0])
         ex.compute_spectrum()

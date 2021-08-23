@@ -141,7 +141,18 @@ def proj4string2cartopy(proj4string):
     """
     Function to build a cartopy projection from a proj4 string
 
-    This is far from complete and was tested only with the Lambert Conformal projection
+    .. warning:: This is far from complete and was tested only with the Lambert Conformal projection
+
+    Parameters
+    ----------
+    proj4string : string
+        string describing projection with proj4 syntax
+
+    Returns
+    -------
+    proj : cartopy.crs.Projection
+        Projection to be used with cartopy
+
     """
     params = {}
     tmp = proj4string.split('+')
@@ -283,13 +294,6 @@ class Grid2d:
             A = A.reshape(self.nrow, self.ncol + 3)
             self.data = A[:, :-3]
 
-            try:
-                lcc = pyproj.Proj(self.proj4string)
-                self.c0 = lcc(self.xwest, self.ysouth, inverse=True)
-                self.c1 = lcc(self.xeast, self.ynorth, inverse=True)
-            except RuntimeError as e:
-                raise e
-
     def ncdump(self, fname='test.nc', complevel=4):
         dataset = netCDF4.Dataset(fname, 'w', format='NETCDF4')
 
@@ -310,7 +314,7 @@ class Grid2d:
 
         dataset.close()
 
-    def readnc(self, fname, proj=True):
+    def read_nc(self, fname):
         try:
             dataset = netCDF4.Dataset(fname, 'r', format='NETCDF4')
         except OSError:
@@ -318,11 +322,11 @@ class Grid2d:
 
         if 'x_range' in dataset.variables:
             x = dataset.variables['x_range']
-            self.xwest = x[0]
-            self.xeast = x[1]
+            self.xwest = x[0].data
+            self.xeast = x[1].data
             y = dataset.variables['y_range']
-            self.ysouth = y[0]
-            self.ynorth = y[1]
+            self.ysouth = y[0].data
+            self.ynorth = y[1].data
             nd = dataset.variables['dimension']
             self.ncol = nd[0]
             self.nrow = nd[1]
@@ -337,16 +341,16 @@ class Grid2d:
             except KeyError:
                 x = dataset.variables['lon']
                 self.latlon = True
-            self.xwest = x[0]
-            self.xeast = x[-1]
+            self.xwest = x[0].data
+            self.xeast = x[-1].data
             self.ncol = x.size
             self.dx = x[1] - x[0]
             try:
                 y = dataset.variables['y']
             except KeyError:
                 y = dataset.variables['lat']
-            self.ysouth = y[0]
-            self.ynorth = y[-1]
+            self.ysouth = y[0].data
+            self.ynorth = y[-1].data
             self.nrow = y.size
             self.dy = y[1] - y[0]
             self.data = np.array(dataset.variables['z'])
@@ -371,12 +375,14 @@ class Grid2d:
         self.nrow = raster.RasterYSize
         self.data = raster.ReadAsArray()
 
-    def preFFTMA(self, cm):
+    def preFFTMA(self, covariance_models):
         """
         Compute matrix G for FFT-MA simulations
 
-        INPUT
-            cm: list of covariance models
+        Parameters
+        ----------
+        covariance_models: list of geostat.Covariance
+            covariance models
 
         """
         small = 1.0e-6
@@ -393,7 +399,7 @@ class Grid2d:
         y = np.kron(y, np.ones((1, Nx)).T).flatten()
 
         d = 0
-        for c in cm:
+        for c in covariance_models:
             d = d + c.compute(np.vstack((x, y)).T, np.zeros((1, 2)))
         K = d.reshape(Nx, Ny)
 
@@ -420,7 +426,7 @@ class Grid2d:
                 y = np.kron(y, np.ones((1, Nx)).T).flatten()
 
                 d = 0
-                for c in cm:
+                for c in covariance_models:
                     d = d + c.compute(np.vstack((x, y)).T, np.zeros((1, 2)))
                 K = d.reshape(Nx, Ny)
 
@@ -430,8 +436,10 @@ class Grid2d:
         """
         Perform FFT-MA simulation using pre-computed spectral matrix
 
-        OUTPUT
-            Z: simulated field of size nx x ny
+        Returns
+        -------
+        Z: ndarray
+            simulated field of size nx x ny
         """
         if self.G is None:
             raise RuntimeError('Spectral matrix G should be precomputed')
@@ -2047,7 +2055,7 @@ if __name__ == '__main__':
     if testSpec:
         g = Grid2d(
             '+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
-        g.readnc('/Users/giroux/JacquesCloud/Projets/CPD/NAmag/Qc_lcc_k.nc')
+        g.read_nc('/Users/giroux/JacquesCloud/Projets/CPD/NAmag/Qc_lcc_k.nc')
 
         #         S, k, std, ns, flag = g.getRadialSpectrum(1606000.0, -1963000.0, 500000.0,
         #                                              tukey, detrend=1, cdecim=5, kcut=2.0)
@@ -2088,7 +2096,7 @@ if __name__ == '__main__':
     if testAz:
         g = Grid2d(
             '+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs')
-        g.readnc('/Users/giroux/JacquesCloud/Projets/CPD/NAmag/Qc_lcc_k.nc')
+        g.read_nc('/Users/giroux/JacquesCloud/Projets/CPD/NAmag/Qc_lcc_k.nc')
 
         S, k, theta, flag = g.get_azimuthal_spectrum(1606000.0, -1963000.0, 500000.0, tukey, 1)
 

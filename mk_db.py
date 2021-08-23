@@ -15,7 +15,7 @@ import shelve
 proj4string = '+proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs -f %9.9f'
 
 g = Grid2d(proj4string)
-g.readnc('data/Qc_lcc_clipped.nc')
+g.read_nc('data/Qc_lcc_clipped.nc')
 
 df = pd.read_csv('data/Global2010edit.csv')
 
