@@ -20,6 +20,7 @@ The following python modules are needed to run the software
 - pyproj (https://github.com/jswhit/pyproj)
 - pyfftw (https://pypi.python.org/pypi/pyFFTW)
 - spectrum (http://www.thomas-cokelaer.info/software/spectrum/html/contents.html)
+- GDAL (https://gdal.org)
 
 ### Cython file
 
@@ -38,11 +39,13 @@ Examples can be found in the data directory.
 - Recognized formats are:
     * netCDF (COARDS compliant)
     * USGS sgd grid
+    * Formats recognized by GDAL (not fully tested)
 - In order to display the map, the user is asked to enter coordinate projection information.  This is done by giving a proj4 string (http://proj4.org), e.g. for coordinates projected in the Lambert conic conformal for Eastern Canada, the string is
 
 ```
 +proj=lcc +lat_1=49 +lat_2=77 +lat_0=63 +lon_0=-92 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs
 ```
+- Alternatively, coordinate projection information can be retrieved by the GDAL driver if they are contained in the data file.
 
 ### Borehole Data
 
