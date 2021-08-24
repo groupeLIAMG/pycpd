@@ -374,6 +374,8 @@ class Grid2d:
         self.ncol = raster.RasterXSize
         self.nrow = raster.RasterYSize
         self.data = raster.ReadAsArray()
+        # flip up-down for cartopy
+        self.data = self.data[::-1, :]
 
     def preFFTMA(self, covariance_models):
         """
