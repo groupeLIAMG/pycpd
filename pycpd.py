@@ -1163,10 +1163,9 @@ class PyCPD(QMainWindow):
                     QMessageBox.critical(self, 'Error',
                                          'Projection information not found by GDAL driver in file '+fname[0],
                                          QMessageBox.Ok)
-                    self.grid = oldgrid
                 else:
                     QMessageBox.warning(self, 'Warning', str(e.args[0], 'utf-8'), QMessageBox.Ok)
-                    self.grid = oldgrid
+                self.grid = oldgrid
 
     def load_project(self):
         fname = QFileDialog.getOpenFileName(self, 'Open file', os.path.expanduser('~/'), 'Mac OS (*.db);;Linux (*.dat)')
