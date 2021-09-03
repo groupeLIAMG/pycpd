@@ -35,7 +35,7 @@ import spectrum
 from osgeo import gdal
 from scipy.linalg import lstsq
 from scipy.optimize import fmin, fminbound, fmin_cobyla, least_squares
-from scipy.signal.windows import tukey
+from scipy.signal.windows import tukey, hann, dpss
 from scipy.special import gamma, kv, lambertw
 
 import geostat
@@ -510,7 +510,7 @@ class Grid2d:
 
         return data, nw, flag_pad
 
-    def get_radial_spectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scal_fac=0.001, mem=0, memest=0, order=10,
+    def get_radial_spectrum(self, xc, yc, ww, taper=hann, detrend=0, scal_fac=0.001, mem=0, memest=0, order=10,
                             kcut=0.0, cdecim=0, logspace=0, padding=0):
         """
         Compute radial spectrum for point at (xc,yc) for square window of
@@ -567,26 +567,46 @@ class Grid2d:
         if logspace > 0 and cdecim > 0:
             raise ValueError('Parameters logspace and cdecim are mutually exclusive')
 
+        if taper is dpss and mem != 0:
+            raise ValueError('Multitaper not implemented for maximum entropy estimator')
+
         data, nw, flag_pad = self._get_subgrid(xc, yc, ww, detrend)
 
-        taper_val = np.ones(data.shape)
+        # first dimension
+        if taper is None:
+            pass
+        elif taper is tukey:
+            ht0 = taper(data.shape[0], alpha=0.05)  # Bouligand uses 5% tapering
+        elif taper is dpss:
+            NW = 2.5
+            kmax = int(2*NW - 0.999999)
+            ht0, r0 = taper(data.shape[0], NW=NW, Kmax=kmax, norm='subsample', return_ratios=True)
+        else:
+            ht0 = taper(data.shape[0])
+
+        # second dimension
+        if taper is None:
+            pass
+        elif taper is tukey:
+            ht1 = taper(data.shape[1], alpha=0.05)
+        elif taper is dpss:
+            NW = 2.5
+            kmax = int(2 * NW - 0.999999)
+            ht1, r1 = taper(data.shape[1], NW=NW, Kmax=kmax, norm='subsample', return_ratios=True)
+        else:
+            ht1 = taper(data.shape[1])
 
         if taper is None:
-            ht = 1.0
-        elif taper is tukey:
-            ht = taper(taper_val.shape[0], alpha=0.05)  # Bouligand uses 5% tapering
+            taper_val = 1.0
+        elif taper is dpss:
+            taper_val = []
+            weights = []
+            for n0 in range(kmax):
+                for n1 in range(kmax):
+                    taper_val.append(np.outer(ht0[n0, :], ht1[n1, :]))
+                    weights.append(r0[n0] * r1[n1])
         else:
-            ht = taper(taper_val.shape[0])
-        for n in range(taper_val.shape[1]):
-            taper_val[:, n] *= ht
-        if taper is None:
-            ht = 1.0
-        elif taper is tukey:
-            ht = taper(taper_val.shape[1], alpha=0.05)
-        else:
-            ht = taper(taper_val.shape[1])
-        for n in range(taper_val.shape[0]):
-            taper_val[n, :] *= ht
+            taper_val = np.outer(ht0, ht1)
 
         nfft = data.shape
         if padding > 0:
@@ -597,7 +617,13 @@ class Grid2d:
         dk = 2.0 * np.pi / (nfft[0] - 1) / dx
 
         if mem == 0:
-            TF2D = np.abs(np.fft.fft2(data * taper_val, s=nfft))
+            if type(taper_val) is list:
+                TF2D = weights[0] * np.abs(np.fft.fft2(data * taper_val[0], s=nfft))
+                for n in range(1, len(taper_val)):
+                    TF2D += weights[n] * np.abs(np.fft.fft2(data * taper_val[n], s=nfft))
+                TF2D /= np.sum(np.array(weights))
+            else:
+                TF2D = np.abs(np.fft.fft2(data * taper_val, s=nfft))
             TF2D = np.fft.fftshift(TF2D)
 
             if logspace == 0:
@@ -712,7 +738,7 @@ class Grid2d:
 
         return S, k, std, ns, flag_pad
 
-    def get_azimuthal_spectrum(self, xc, yc, ww, taper=np.hanning, detrend=0, scal_fac=0.001, dtheta=5.0, memest=0,
+    def get_azimuthal_spectrum(self, xc, yc, ww, taper=hann, detrend=0, scal_fac=0.001, dtheta=5.0, memest=0,
                                order=10):
         """
         Compute radial spectrum for point at (xc,yc) for square window of

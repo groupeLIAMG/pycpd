@@ -24,7 +24,7 @@ import sys
 import numpy as np
 from scipy import stats
 import pandas as pd
-from scipy.signal.windows import tukey, hanning
+from scipy.signal.windows import tukey, hann, dpss
 
 import matplotlib
 from PyQt5.QtGui import QDoubleValidator, QIntValidator
@@ -318,7 +318,7 @@ class SpectrumParams(QGroupBox):
         self.detrend.addItems(('None', 'Linear', 'Mean', 'Median', 'Mid'))
         self.detrend.setCurrentIndex(1)
         self.taperwin = QComboBox()
-        self.taperwin.addItems(('tukey', 'hanning', 'None'))
+        self.taperwin.addItems(('tukey', 'hanning', 'multitaper', 'None'))
         self.taperwin.setCurrentIndex(0)
         self.winsize = QLineEdit(locale.toString(500.0, format='f', precision=1))
         self.winsize.setValidator(QDoubleValidator())
@@ -1024,7 +1024,9 @@ class PyCPD(QMainWindow):
                 if self.sp.taperwin.currentIndex() == 0:
                     win = tukey
                 elif self.sp.taperwin.currentIndex() == 1:
-                    win = hanning
+                    win = hann
+                elif self.sp.taperwin.currentIndex() == 2:
+                    win = dpss
                 else:
                     win = None
                 detrend = self.sp.detrend.currentIndex()
